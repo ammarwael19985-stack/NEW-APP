@@ -1,24 +1,20 @@
-const CACHE_NAME = 'branchprep-v3-force-refresh';
-
-self.addEventListener('install', event => {
-  self.skipWaiting();
-});
-
-self.addEventListener('activate', event => {
-  event.waitUntil(
-    caches.keys().then(cacheNames => {
-      return Promise.all(
-        cacheNames.map(cache => {
-          return caches.delete(cache);
-        })
-      );
-    })
-  );
-  self.clients.claim();
-});
-
-self.addEventListener('fetch', event => {
-  event.respondWith(
-    fetch(event.request).catch(() => caches.match(event.request))
-  );
-});
+{
+  "name": "BranchPrep - تحضير الفروع",
+  "short_name": "BranchPrep",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f5f3ee",
+  "theme_color": "#c9502f",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
