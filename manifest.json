@@ -1,0 +1,17 @@
+{
+  "name": "BranchPrep - تحضير الفروع",
+  "short_name": "BranchPrep",
+  "description": "نظام تحضير وتعبئة الطلبات للفروع باستخدام ماسح الباركود",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#12181f",
+  "theme_color": "#1f6f5c",
+  "dir": "rtl",
+  "lang": "ar",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
