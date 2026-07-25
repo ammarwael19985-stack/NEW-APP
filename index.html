@@ -24,7 +24,6 @@
   
   .btn{display:inline-block;background:var(--accent);color:#fff;padding:14px 24px;border-radius:10px;font-weight:700;font-size:1rem;cursor:pointer;border:none;width:100%;text-align:center;}
   .btn:active{background:var(--accent-dark);}
-  .btn.secondary{background:#e3e0d8;color:var(--ink);}
   
   .input-group{margin-bottom:16px;text-align:right;}
   .input-group label{display:block;font-size:.85rem;margin-bottom:6px;color:var(--muted);}
@@ -76,20 +75,20 @@
     <span class="tag" id="statusTag">تسجيل الدخول</span>
   </header>
 
-  <!-- شاشة تسجيل دخول العامل المباشرة -->
+  <!-- شاشة تسجيل دخول العامل -->
   <div id="loginScreen">
     <div class="card">
       <div style="font-size:3rem;margin-bottom:10px;">👷‍♂️</div>
-      <h2>دخول موظفين التحضير</h2>
+      <h2>دخول عمال التحضير</h2>
       <p>أدخل اسمك وكود الطلبية المولد من Google Sheets للبدء</p>
       
       <div class="input-group">
-        <label>اسم العامل (بيتحفظ تلقائياً):</label>
-        <input type="text" id="workerNameInput" placeholder="مثال: أحمد" />
+        <label>اسم العامل:</label>
+        <input type="text" id="workerNameInput" placeholder="مثال: عمار" />
       </div>
       <div class="input-group">
         <label>كود الطلبية (4 أرقام):</label>
-        <input type="number" id="orderCodeInput" placeholder="مثال: 8205" inputmode="numeric" />
+        <input type="number" id="orderCodeInput" placeholder="مثال: 2600" inputmode="numeric" />
       </div>
       
       <button class="btn" onclick="loginWorker()">دخول لبدء التحضير 🚀</button>
@@ -112,7 +111,7 @@
     </div>
 
     <div id="lockAlert" class="lock-banner hidden">
-      🛑 تنبيه: هذا المنتج يقوم بتحضيره الآن العامل: <span id="lockWorkerName"></span> (مغلق مؤقتاً لمنع التضارب)
+      🛑 تنبيه: هذا المنتج يقوم بتحضيره الآن العامل: <span id="lockWorkerName"></span> (مغلق مؤقتاً)
     </div>
 
     <div id="resultBox" class="result hidden"></div>
@@ -122,13 +121,10 @@
 </div>
 
 <script>
-// ==========================================
-// رابط API السحابي
-// ==========================================
 const API_URL = 'https://script.google.com/macros/s/AKfycbwkFDchLHEM7eeiluBR4J2luERZnmttgpF6iFsi0kFYAPBUdArv_R2vXj3eye63upDYPw/exec';
 
 let currentUser = localStorage.getItem('branchprep_worker') || '';
-let currentOrderCode = '';
+let currentOrderCode = localStorage.getItem('branchprep_ordercode') || '';
 let currentOrderData = null;
 let currentScannedBarcode = null;
 
@@ -156,9 +152,29 @@ async function apiCall(action, payload) {
   }
 }
 
-// ==========================================
-// تسجيل دخول العامل
-// ==========================================
+// فحص الجلسة السابقة تلقائياً عند تحميل الصفحة/الريفرش
+window.addEventListener('DOMContentLoaded', async () => {
+  if (currentUser && currentOrderCode) {
+    document.getElementById('orderCodeInput').value = currentOrderCode;
+    showLoader('جاري استعادة الجلسة والبيانات...');
+    const res = await apiCall('GET_ORDER', { orderCode: currentOrderCode });
+    hideLoader();
+
+    if (res.success) {
+      currentOrderData = res;
+      document.getElementById('lblWorker').textContent = currentUser;
+      document.getElementById('lblCode').textContent = currentOrderCode;
+      
+      document.getElementById('loginScreen').classList.add('hidden');
+      document.getElementById('scanScreen').classList.remove('hidden');
+      document.getElementById('statusTag').textContent = 'جاري التحضير';
+      document.getElementById('barcodeInput').focus();
+    } else {
+      localStorage.removeItem('branchprep_ordercode');
+    }
+  }
+});
+
 async function loginWorker() {
   const name = document.getElementById('workerNameInput').value.trim();
   const code = document.getElementById('orderCodeInput').value.trim();
@@ -172,6 +188,7 @@ async function loginWorker() {
   }
 
   localStorage.setItem('branchprep_worker', name);
+  localStorage.setItem('branchprep_ordercode', code);
   currentUser = name;
   currentOrderCode = code;
 
@@ -195,12 +212,17 @@ async function loginWorker() {
 }
 
 function leaveOrder() {
-  if(!confirm('هل تريد الخروج من شاشة التحضير؟')) return;
+  if(!confirm('هل تريد الخروج من هذه الطلبية؟')) return;
   if(currentScannedBarcode) {
     apiCall('UNLOCK_PRODUCT', { orderCode: currentOrderCode, barcode: currentScannedBarcode, workerName: currentUser });
   }
+  
+  // مسح كود الطلبية المحفوظ لمنع الدخول التلقائي مرة أخرى
+  localStorage.removeItem('branchprep_ordercode');
+  currentOrderCode = '';
   currentOrderData = null;
   currentScannedBarcode = null;
+  
   document.getElementById('resultBox').innerHTML = '';
   document.getElementById('resultBox').classList.add('hidden');
   document.getElementById('lockAlert').classList.add('hidden');
@@ -240,19 +262,17 @@ document.getElementById('scanForm').addEventListener('submit', async function(e)
   const lockedBy = currentOrderData.locks[barcode];
   
   if(lockedBy && lockedBy !== currentUser) {
-    // 🛑 المنتج محجوز لشخص آخر
     lockAlert.classList.remove('hidden');
     document.getElementById('lockWorkerName').textContent = lockedBy;
-    renderResult(barcode, true); // Readonly
+    renderResult(barcode, true);
   } else {
-    // ✅ المنتج متاح أو محجوز لي
     lockAlert.classList.add('hidden');
     if(currentScannedBarcode && currentScannedBarcode !== barcode) {
       apiCall('UNLOCK_PRODUCT', { orderCode: currentOrderCode, barcode: currentScannedBarcode, workerName: currentUser });
     }
     currentScannedBarcode = barcode;
     apiCall('LOCK_PRODUCT', { orderCode: currentOrderCode, barcode: barcode, workerName: currentUser });
-    renderResult(barcode, false); // Editable
+    renderResult(barcode, false);
   }
 });
 
