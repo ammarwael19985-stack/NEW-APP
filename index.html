@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BranchPrep Cloud - تحضير سحابي</title>
+<title>BranchPrep Cloud - تحضير سحابي سريع</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#c9502f">
 <style>
@@ -88,7 +88,7 @@
       </div>
       <div class="input-group">
         <label>كود الطلبية (4 أرقام):</label>
-        <input type="number" id="orderCodeInput" placeholder="مثال: 2600" inputmode="numeric" />
+        <input type="number" id="orderCodeInput" placeholder="مثال: 7822" inputmode="numeric" />
       </div>
       
       <button class="btn" onclick="loginWorker()">دخول لبدء التحضير 🚀</button>
@@ -152,28 +152,44 @@ async function apiCall(action, payload) {
   }
 }
 
-// فحص الجلسة السابقة تلقائياً عند تحميل الصفحة/الريفرش
+// تحميل الجلسة فوراً من الذاكرة المحلية إذا كانت موجودة (Fast Startup)
 window.addEventListener('DOMContentLoaded', async () => {
+  const cachedData = localStorage.getItem('branchprep_data_' + currentOrderCode);
+  
   if (currentUser && currentOrderCode) {
     document.getElementById('orderCodeInput').value = currentOrderCode;
-    showLoader('جاري استعادة الجلسة والبيانات...');
+    
+    // لو فيه بيانات كاش قديمة، نظهرها فوراً بدون انتظار الشاشة البيضاء
+    if (cachedData) {
+      currentOrderData = JSON.parse(cachedData);
+      openScanScreen();
+    } else {
+      showLoader('جاري التحميل لأول مرة...');
+    }
+
+    // تحديث البيانات في الخلفية
     const res = await apiCall('GET_ORDER', { orderCode: currentOrderCode });
     hideLoader();
 
     if (res.success) {
       currentOrderData = res;
-      document.getElementById('lblWorker').textContent = currentUser;
-      document.getElementById('lblCode').textContent = currentOrderCode;
-      
-      document.getElementById('loginScreen').classList.add('hidden');
-      document.getElementById('scanScreen').classList.remove('hidden');
-      document.getElementById('statusTag').textContent = 'جاري التحضير';
-      document.getElementById('barcodeInput').focus();
-    } else {
+      localStorage.setItem('branchprep_data_' + currentOrderCode, JSON.stringify(res));
+      openScanScreen();
+    } else if (!cachedData) {
       localStorage.removeItem('branchprep_ordercode');
     }
   }
 });
+
+function openScanScreen() {
+  document.getElementById('lblWorker').textContent = currentUser;
+  document.getElementById('lblCode').textContent = currentOrderCode;
+  
+  document.getElementById('loginScreen').classList.add('hidden');
+  document.getElementById('scanScreen').classList.remove('hidden');
+  document.getElementById('statusTag').textContent = 'جاري التحضير';
+  document.getElementById('barcodeInput').focus();
+}
 
 async function loginWorker() {
   const name = document.getElementById('workerNameInput').value.trim();
@@ -182,7 +198,7 @@ async function loginWorker() {
   errBox.classList.add('hidden');
 
   if(!name || !code) {
-    errBox.textContent = 'برجاء كتابة الاسم وكود الطلبية كاملين!';
+    errBox.textContent = 'برجاء كتابة الاسم وكود الطلبية كاملاً!';
     errBox.classList.remove('hidden');
     return;
   }
@@ -192,19 +208,14 @@ async function loginWorker() {
   currentUser = name;
   currentOrderCode = code;
 
-  showLoader('جاري فتح الطلبية والسحابة...');
+  showLoader('جاري جلب بيانات الطلبية...');
   const res = await apiCall('GET_ORDER', { orderCode: code });
   hideLoader();
 
   if(res.success) {
     currentOrderData = res;
-    document.getElementById('lblWorker').textContent = currentUser;
-    document.getElementById('lblCode').textContent = currentOrderCode;
-    
-    document.getElementById('loginScreen').classList.add('hidden');
-    document.getElementById('scanScreen').classList.remove('hidden');
-    document.getElementById('statusTag').textContent = 'جاري التحضير';
-    document.getElementById('barcodeInput').focus();
+    localStorage.setItem('branchprep_data_' + code, JSON.stringify(res));
+    openScanScreen();
   } else {
     errBox.textContent = res.message || 'كود الطلبية غير صحيح أو غير موجود!';
     errBox.classList.remove('hidden');
@@ -217,8 +228,9 @@ function leaveOrder() {
     apiCall('UNLOCK_PRODUCT', { orderCode: currentOrderCode, barcode: currentScannedBarcode, workerName: currentUser });
   }
   
-  // مسح كود الطلبية المحفوظ لمنع الدخول التلقائي مرة أخرى
   localStorage.removeItem('branchprep_ordercode');
+  if(currentOrderCode) localStorage.removeItem('branchprep_data_' + currentOrderCode);
+  
   currentOrderCode = '';
   currentOrderData = null;
   currentScannedBarcode = null;
@@ -234,9 +246,9 @@ function leaveOrder() {
 }
 
 // ==========================================
-// المسح وقفل المنتج اللحظي
+// المسح السريع اللحظي (InstaScan)
 // ==========================================
-document.getElementById('scanForm').addEventListener('submit', async function(e){
+document.getElementById('scanForm').addEventListener('submit', function(e){
   e.preventDefault();
   const barcode = document.getElementById('barcodeInput').value.trim();
   if(!barcode) return;
@@ -252,14 +264,9 @@ document.getElementById('scanForm').addEventListener('submit', async function(e)
   const resultBox = document.getElementById('resultBox');
   const lockAlert = document.getElementById('lockAlert');
   resultBox.classList.remove('hidden');
-  
-  showLoader('تحديث حالة الصنف بالسحابة...');
-  const syncRes = await apiCall('GET_ORDER', { orderCode: currentOrderCode });
-  hideLoader();
-  
-  if(syncRes.success) currentOrderData = syncRes;
-  
-  const lockedBy = currentOrderData.locks[barcode];
+
+  // ⚡ عرض المنتج فوراً بدون أي انتظار للسيرفر!
+  const lockedBy = currentOrderData.locks ? currentOrderData.locks[barcode] : null;
   
   if(lockedBy && lockedBy !== currentUser) {
     lockAlert.classList.remove('hidden');
@@ -267,13 +274,24 @@ document.getElementById('scanForm').addEventListener('submit', async function(e)
     renderResult(barcode, true);
   } else {
     lockAlert.classList.add('hidden');
+    
     if(currentScannedBarcode && currentScannedBarcode !== barcode) {
       apiCall('UNLOCK_PRODUCT', { orderCode: currentOrderCode, barcode: currentScannedBarcode, workerName: currentUser });
     }
     currentScannedBarcode = barcode;
+    
+    // إرسال قفل الصنف في الخلفية بدون تعطيل العامل
     apiCall('LOCK_PRODUCT', { orderCode: currentOrderCode, barcode: barcode, workerName: currentUser });
     renderResult(barcode, false);
   }
+
+  // مزامنة حالة الأقفال والتحديثات في الخلفية بدون إظهار Spinner
+  apiCall('GET_ORDER', { orderCode: currentOrderCode }).then(syncRes => {
+    if(syncRes.success) {
+      currentOrderData = syncRes;
+      localStorage.setItem('branchprep_data_' + currentOrderCode, JSON.stringify(syncRes));
+    }
+  });
 });
 
 function renderResult(barcode, isLocked) {
@@ -318,7 +336,7 @@ function renderResult(barcode, isLocked) {
 
 function attachSyncEvents() {
   document.querySelectorAll('.fill-btn').forEach(btn => {
-    btn.onclick = async function() {
+    btn.onclick = function() {
       const branch = this.getAttribute('data-branch');
       const barcode = this.getAttribute('data-barcode');
       const target = this.getAttribute('data-target');
@@ -328,17 +346,20 @@ function attachSyncEvents() {
       
       this.closest('tr').classList.add('branch-done');
       
-      apiCall('UPDATE_QTY', { orderCode: currentOrderCode, barcode: barcode, branch: branch, actualQty: target, workerName: currentUser });
-      
+      // تحديث محلي في اللحظة
       if(currentOrderData.items[barcode] && currentOrderData.items[barcode].branches[branch]) {
         currentOrderData.items[barcode].branches[branch].actual = target;
         currentOrderData.items[barcode].branches[branch].worker = currentUser;
+        localStorage.setItem('branchprep_data_' + currentOrderCode, JSON.stringify(currentOrderData));
       }
+
+      // إرسال للسحابة في الخلفية
+      apiCall('UPDATE_QTY', { orderCode: currentOrderCode, barcode: barcode, branch: branch, actualQty: target, workerName: currentUser });
     };
   });
 
   document.querySelectorAll('.sync-input').forEach(input => {
-    input.onchange = async function() {
+    input.onchange = function() {
       const branch = this.getAttribute('data-branch');
       const barcode = this.getAttribute('data-barcode');
       const val = this.value;
@@ -350,12 +371,13 @@ function attachSyncEvents() {
         this.closest('tr').classList.remove('branch-done');
       }
       
-      apiCall('UPDATE_QTY', { orderCode: currentOrderCode, barcode: barcode, branch: branch, actualQty: val, workerName: currentUser });
-      
       if(currentOrderData.items[barcode] && currentOrderData.items[barcode].branches[branch]) {
         currentOrderData.items[barcode].branches[branch].actual = val;
         currentOrderData.items[barcode].branches[branch].worker = currentUser;
+        localStorage.setItem('branchprep_data_' + currentOrderCode, JSON.stringify(currentOrderData));
       }
+
+      apiCall('UPDATE_QTY', { orderCode: currentOrderCode, barcode: barcode, branch: branch, actualQty: val, workerName: currentUser });
     };
   });
 }
