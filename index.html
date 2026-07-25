@@ -45,9 +45,9 @@
   .scan-box input:focus{outline:3px solid var(--accent);}
   
   .result{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:16px;}
-  .result .pname{font-size:1.15rem;font-weight:800;margin-bottom:2px;}
+  .result .pname{font-size:1.15rem;font-weight:800;margin-bottom:12px;}
   
-  .branch-table{width:100%;border-collapse:collapse;margin-top:10px;}
+  .branch-table{width:100%;border-collapse:collapse;}
   .branch-table tr{border-bottom:1px solid var(--line);}
   .branch-table td{padding:12px 4px;font-size:1rem;}
   .branch-table td.qty{text-align:left;font-weight:800;font-size:1.25rem;color:var(--accent-dark);}
@@ -127,7 +127,7 @@
       </div>
       <div class="input-group">
         <label>كود الطلبية (4 أرقام):</label>
-        <input type="number" id="orderCodeInput" placeholder="مثال: 4812" inputmode="numeric" />
+        <input type="number" id="orderCodeInput" placeholder="مثال: 8205" inputmode="numeric" />
       </div>
       <button class="btn" onclick="loginWorker()">دخول للطلبية 🚀</button>
       <div class="error-msg hidden" id="workerError"></div>
@@ -198,7 +198,6 @@ function hideLoader() {
   document.getElementById('loader').classList.add('hidden');
 }
 
-// دالة سريعة ومضمونة بدون مشاكل CORS
 async function apiCall(action, payload) {
   try {
     const response = await fetch(API_URL, {
@@ -248,7 +247,7 @@ async function processAndUpload(rows) {
     return;
   }
 
-  const branchStart = 2; // بافتراض (باركود، منتج، الفروع...)
+  const branchStart = 2; // بافتراض أول عامودين: باركود، واسم منتج
   const header = rows[0];
   const branchNames = header.slice(branchStart).map(h => String(h).trim()).filter(Boolean);
   
@@ -268,7 +267,7 @@ async function processAndUpload(rows) {
     });
   }
 
-  showLoader('جاري رفع الطلبية للسحابة بسرعة...');
+  showLoader('جاري إنشاء الطلبية وتنسيق الجداول...');
   const res = await apiCall('CREATE_ORDER', { branchNames, items });
   hideLoader();
 
@@ -299,7 +298,7 @@ async function loginWorker() {
   currentUser = name;
   currentOrderCode = code;
 
-  showLoader('جاري سحب بيانات الطلبية...');
+  showLoader('جاري جلب بيانات الطلبية...');
   const res = await apiCall('GET_ORDER', { orderCode: code });
   hideLoader();
 
@@ -329,7 +328,7 @@ function leaveOrder() {
 }
 
 // ==========================================
-// نظام المسح والمزامنة اللحظية (Scan & Sync)
+// نظام المسح وعرض البيانات بالتنسيق الجديد
 // ==========================================
 document.getElementById('scanForm').addEventListener('submit', async function(e){
   e.preventDefault();
@@ -375,14 +374,13 @@ document.getElementById('scanForm').addEventListener('submit', async function(e)
 
 function renderResult(barcode, isLocked) {
   const item = currentOrderData.items[barcode];
-  const prepState = currentOrderData.prepState[barcode] || {};
+  const branches = item.branches || {};
   let rowsHtml = '';
   
-  currentOrderData.branchNames.forEach((branch, idx) => {
-    const targetQty = Number(item.qtys[idx]) || 0;
-    if(targetQty === 0) return;
-    
-    const actual = prepState[branch] ? prepState[branch].actual : '';
+  Object.keys(branches).forEach(branchName => {
+    const bData = branches[branchName];
+    const targetQty = Number(bData.target) || 0;
+    const actual = bData.actual !== undefined ? bData.actual : '';
     const actualNum = Number(actual) || 0;
     const isDone = (actual !== '' && actualNum >= targetQty);
     
@@ -391,14 +389,14 @@ function renderResult(barcode, isLocked) {
       actionCell = `<td>${actual !== '' ? actual : '0'} (مغلق)</td><td></td>`;
     } else {
       actionCell = `
-        <td class="actual"><input type="number" class="actual-input sync-input" data-branch="${branch}" data-barcode="${barcode}" value="${actual}"></td>
-        <td><button class="fill-btn" data-branch="${branch}" data-barcode="${barcode}" data-target="${targetQty}">⚡</button></td>
+        <td class="actual"><input type="number" class="actual-input sync-input" data-branch="${branchName}" data-barcode="${barcode}" value="${actual}"></td>
+        <td><button class="fill-btn" data-branch="${branchName}" data-barcode="${barcode}" data-target="${targetQty}">⚡</button></td>
       `;
     }
     
     rowsHtml += `
       <tr class="${isDone ? 'branch-done' : ''}">
-        <td>${branch}</td>
+        <td>${branchName}</td>
         <td class="qty">${targetQty}</td>
         ${actionCell}
       </tr>
@@ -427,8 +425,10 @@ function attachSyncEvents() {
       
       apiCall('UPDATE_QTY', { orderCode: currentOrderCode, barcode: barcode, branch: branch, actualQty: target, workerName: currentUser });
       
-      if(!currentOrderData.prepState[barcode]) currentOrderData.prepState[barcode] = {};
-      currentOrderData.prepState[barcode][branch] = { actual: target, worker: currentUser };
+      if(currentOrderData.items[barcode] && currentOrderData.items[barcode].branches[branch]) {
+        currentOrderData.items[barcode].branches[branch].actual = target;
+        currentOrderData.items[barcode].branches[branch].worker = currentUser;
+      }
     };
   });
 
@@ -447,8 +447,10 @@ function attachSyncEvents() {
       
       apiCall('UPDATE_QTY', { orderCode: currentOrderCode, barcode: barcode, branch: branch, actualQty: val, workerName: currentUser });
       
-      if(!currentOrderData.prepState[barcode]) currentOrderData.prepState[barcode] = {};
-      currentOrderData.prepState[barcode][branch] = { actual: val, worker: currentUser };
+      if(currentOrderData.items[barcode] && currentOrderData.items[barcode].branches[branch]) {
+        currentOrderData.items[barcode].branches[branch].actual = val;
+        currentOrderData.items[barcode].branches[branch].worker = currentUser;
+      }
     };
   });
 }
