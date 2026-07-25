@@ -6,7 +6,6 @@
 <title>BranchPrep Cloud - تحضير سحابي</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#c9502f">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root{
     --ink:#12181f; --paper:#f5f3ee; --panel:#ffffff; --line:#dcd6c9;
@@ -26,14 +25,12 @@
   .btn{display:inline-block;background:var(--accent);color:#fff;padding:14px 24px;border-radius:10px;font-weight:700;font-size:1rem;cursor:pointer;border:none;width:100%;text-align:center;}
   .btn:active{background:var(--accent-dark);}
   .btn.secondary{background:#e3e0d8;color:var(--ink);}
-  .btn.warn{background:var(--warn);color:#fff;}
   
   .input-group{margin-bottom:16px;text-align:right;}
   .input-group label{display:block;font-size:.85rem;margin-bottom:6px;color:var(--muted);}
   .input-group input{width:100%;padding:12px 14px;font-size:1.1rem;border-radius:8px;border:1px solid var(--line);background:#faf8f2;}
   .input-group input:focus{outline:2px solid var(--accent);}
   
-  input[type=file]{display:none;}
   .hidden{display:none !important;}
   
   .status-bar{display:flex;justify-content:space-between;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin-bottom:16px;font-size:.78rem;color:var(--muted);}
@@ -58,14 +55,12 @@
   tr.branch-done td{color:#9a9488;}
   tr.branch-done td.qty{text-decoration:line-through;}
   
-  .lock-banner{background:#fbeae5;border:2px solid var(--warn);color:var(--warn);padding:14px;border-radius:12px;font-size:1rem;font-weight:bold;text-align:center;margin-bottom:16px;}
+  .lock-banner{background:#fbeae5;border:2px solid var(--warn);color:var(--warn);padding:14px;border-radius:12px;font-size:.95rem;font-weight:bold;text-align:center;margin-bottom:16px;}
   .error-msg{background:#fbeae5;border:1px solid #e3b6a6;color:var(--warn);padding:12px;border-radius:10px;font-size:.85rem;margin-top:10px;}
   
   #loader{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(245,243,238,0.9);z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;}
   .spinner{width:40px;height:40px;border:4px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite;margin-bottom:16px;}
   @keyframes spin { 100% { transform:rotate(360deg); } }
-  
-  .big-code{font-size:3rem;letter-spacing:4px;color:var(--accent-dark);margin:10px 0;}
 </style>
 </head>
 <body>
@@ -78,90 +73,57 @@
 <div class="wrap" id="appWrap">
   <header>
     <h1>BranchPrep <span style="background:var(--accent);color:#fff;font-size:.62rem;padding:2px 8px;border-radius:10px;vertical-align:middle;">سحابي ☁️</span></h1>
-    <span class="tag" id="statusTag">الرئيسية</span>
+    <span class="tag" id="statusTag">تسجيل الدخول</span>
   </header>
 
-  <!-- شاشة الاختيار الرئيسية -->
-  <div id="homeScreen">
+  <!-- شاشة تسجيل دخول العامل المباشرة -->
+  <div id="loginScreen">
     <div class="card">
       <div style="font-size:3rem;margin-bottom:10px;">👷‍♂️</div>
-      <h2>دخول العمال للتحضير</h2>
-      <p>اكتب كود الطلبية واسمك عشان تبدأ تحضير</p>
-      <button class="btn" onclick="showScreen('workerScreen')">تسجيل الدخول للتحضير</button>
-    </div>
-    <div class="card">
-      <div style="font-size:3rem;margin-bottom:10px;">👨‍💻</div>
-      <h2>لوحة الإدارة (رفع ملف)</h2>
-      <p>ارفع ملف إكسيل لإنشاء طلبية وتوليد كود جديد</p>
-      <button class="btn secondary" onclick="showScreen('adminScreen')">رفع طلبية جديدة</button>
-    </div>
-  </div>
-
-  <!-- شاشة الإدارة (رفع الملف) -->
-  <div id="adminScreen" class="hidden">
-    <div class="card">
-      <h2>رفع ملف الطلبات للإدارة</h2>
-      <label class="btn">
-        اختيار ملف إكسيل
-        <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" />
-      </label>
-      <div class="error-msg hidden" id="adminError"></div>
-    </div>
-    
-    <div class="card hidden" id="orderCreatedCard">
-      <h2>✅ تم إنشاء الطلبية بنجاح!</h2>
-      <p>أعط هذا الكود للعمال ليبدأوا التحضير:</p>
-      <div class="big-code" id="displayOrderCode">----</div>
-    </div>
-    
-    <button class="btn secondary" onclick="showScreen('homeScreen')">رجوع للرئيسية</button>
-  </div>
-
-  <!-- شاشة تسجيل دخول العامل -->
-  <div id="workerScreen" class="hidden">
-    <div class="card">
-      <h2>بيانات الدخول</h2>
+      <h2>دخول عمال التحضير</h2>
+      <p>أدخل اسمك وكود الطلبية المولد من Google Sheets للبدء</p>
+      
       <div class="input-group">
-        <label>اسم العامل (بيتحفظ تلقائي):</label>
+        <label>اسم العامل (بيتحفظ تلقائياً):</label>
         <input type="text" id="workerNameInput" placeholder="مثال: أحمد" />
       </div>
       <div class="input-group">
         <label>كود الطلبية (4 أرقام):</label>
         <input type="number" id="orderCodeInput" placeholder="مثال: 8205" inputmode="numeric" />
       </div>
-      <button class="btn" onclick="loginWorker()">دخول للطلبية 🚀</button>
-      <div class="error-msg hidden" id="workerError"></div>
+      
+      <button class="btn" onclick="loginWorker()">دخول لبدء التحضير 🚀</button>
+      <div class="error-msg hidden" id="loginError"></div>
     </div>
-    <button class="btn secondary" onclick="showScreen('homeScreen')">رجوع</button>
   </div>
 
-  <!-- شاشة التحضير (المسح) -->
+  <!-- شاشة التحضير والمسح -->
   <div id="scanScreen" class="hidden">
     <div class="status-bar">
-      <span>عامل: <b id="lblWorker"></b> | كود: <b id="lblCode"></b></span>
-      <button onclick="leaveOrder()" style="background:none;border:1px solid var(--line);border-radius:8px;padding:4px 8px;color:var(--warn);">خروج</button>
+      <span>المحضر: <b id="lblWorker"></b> | كود الطلبية: <b id="lblCode"></b></span>
+      <button onclick="leaveOrder()" style="background:none;border:1px solid var(--line);border-radius:8px;padding:4px 8px;color:var(--warn);cursor:pointer;">خروج</button>
     </div>
 
     <div class="scan-box">
-      <label>اضرب الباركود دلوقتي</label>
+      <label>امسح باركود المنتج الآن</label>
       <form id="scanForm">
-        <input type="text" id="barcodeInput" inputmode="none" placeholder="امسح الباركود واضغط Enter" autocomplete="off" />
+        <input type="text" id="barcodeInput" inputmode="none" placeholder="اضرب الباركود هنا" autocomplete="off" />
       </form>
     </div>
 
     <div id="lockAlert" class="lock-banner hidden">
-      🛑 عفواً! هذا المنتج يقدم بتحضيره الآن: <span id="lockWorkerName"></span>
+      🛑 تنبيه: هذا المنتج يقوم بتحضيره الآن العامل: <span id="lockWorkerName"></span> (مغلق مؤقتاً لمنع التضارب)
     </div>
 
     <div id="resultBox" class="result hidden"></div>
     
-    <div id="placeholder" style="text-align:center;color:var(--muted);padding:20px;">استنى مسح باركود عشان تطلعلك الكميات هنا</div>
+    <div id="placeholder" style="text-align:center;color:var(--muted);padding:30px 20px;">امسح باركود أي صنف لتظهر لك كميات الفروع المطلوبة</div>
   </div>
 </div>
 
 <script>
 // ==========================================
-// الإعدادات السحابية (API)
+// رابط API السحابي
 // ==========================================
 const API_URL = 'https://script.google.com/macros/s/AKfycbwkFDchLHEM7eeiluBR4J2luERZnmttgpF6iFsi0kFYAPBUdArv_R2vXj3eye63upDYPw/exec';
 
@@ -171,20 +133,6 @@ let currentOrderData = null;
 let currentScannedBarcode = null;
 
 document.getElementById('workerNameInput').value = currentUser;
-
-function showScreen(screenId) {
-  document.getElementById('homeScreen').classList.add('hidden');
-  document.getElementById('adminScreen').classList.add('hidden');
-  document.getElementById('workerScreen').classList.add('hidden');
-  document.getElementById('scanScreen').classList.add('hidden');
-  document.getElementById(screenId).classList.remove('hidden');
-  
-  if(screenId === 'scanScreen') {
-    document.getElementById('statusTag').textContent = 'جاري التحضير';
-  } else {
-    document.getElementById('statusTag').textContent = 'الرئيسية';
-  }
-}
 
 function showLoader(text) {
   document.getElementById('loaderText').textContent = text;
@@ -209,79 +157,16 @@ async function apiCall(action, payload) {
 }
 
 // ==========================================
-// الإدارة والرفع
-// ==========================================
-document.getElementById('fileInput').addEventListener('change', async function(e){
-  const file = e.target.files[0];
-  if(!file) return;
-  
-  showLoader('جاري قراءة وتجهيز الملف...');
-  const reader = new FileReader();
-  reader.onload = function(evt) {
-    try {
-      const data = new Uint8Array(evt.target.result);
-      const wb = XLSX.read(data, {type:'array'});
-      const sheet = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(sheet, {header:1, defval:''});
-      processAndUpload(rows);
-    } catch(err) {
-      hideLoader();
-      document.getElementById('adminError').textContent = 'خطأ في قراءة ملف الإكسيل';
-      document.getElementById('adminError').classList.remove('hidden');
-    }
-  };
-  reader.readAsArrayBuffer(file);
-});
-
-async function processAndUpload(rows) {
-  while(rows.length > 0 && (!rows[0] || rows[0].length === 0 || rows[0].every(c => c === ''))) {
-    rows.shift();
-  }
-  if(rows.length < 2) { hideLoader(); alert('الملف فارغ أو غير صحيح'); return; }
-
-  const branchStart = 2;
-  const header = rows[0];
-  const branchNames = header.slice(branchStart).map(h => String(h).trim()).filter(Boolean);
-  
-  const items = [];
-  for(let i=1; i<rows.length; i++){
-    const r = rows[i];
-    const code = String(r[0] !== undefined ? r[0] : '').trim();
-    if(!code) continue;
-    
-    items.push({
-      barcode: code,
-      product: String(r[1] !== undefined ? r[1] : '').trim(),
-      qtys: branchNames.map((_, idx) => {
-        const v = r[branchStart+idx];
-        return (v === undefined || v === '' || isNaN(v)) ? 0 : v;
-      })
-    });
-  }
-
-  showLoader('جاري إنشاء الطلبية وتنسيق الجداول...');
-  const res = await apiCall('CREATE_ORDER', { branchNames, items });
-  hideLoader();
-
-  if(res.success) {
-    document.getElementById('orderCreatedCard').classList.remove('hidden');
-    document.getElementById('displayOrderCode').textContent = res.orderCode;
-  } else {
-    alert('فشل الرفع: ' + res.message);
-  }
-}
-
-// ==========================================
-// دخول العمال
+// تسجيل دخول العامل
 // ==========================================
 async function loginWorker() {
   const name = document.getElementById('workerNameInput').value.trim();
   const code = document.getElementById('orderCodeInput').value.trim();
-  const errBox = document.getElementById('workerError');
+  const errBox = document.getElementById('loginError');
   errBox.classList.add('hidden');
 
   if(!name || !code) {
-    errBox.textContent = 'برجاء كتابة الاسم وكود الطلبية!';
+    errBox.textContent = 'برجاء كتابة الاسم وكود الطلبية كاملين!';
     errBox.classList.remove('hidden');
     return;
   }
@@ -290,7 +175,7 @@ async function loginWorker() {
   currentUser = name;
   currentOrderCode = code;
 
-  showLoader('جاري جلب بيانات الطلبية...');
+  showLoader('جاري فتح الطلبية والسحابة...');
   const res = await apiCall('GET_ORDER', { orderCode: code });
   hideLoader();
 
@@ -298,16 +183,19 @@ async function loginWorker() {
     currentOrderData = res;
     document.getElementById('lblWorker').textContent = currentUser;
     document.getElementById('lblCode').textContent = currentOrderCode;
-    showScreen('scanScreen');
+    
+    document.getElementById('loginScreen').classList.add('hidden');
+    document.getElementById('scanScreen').classList.remove('hidden');
+    document.getElementById('statusTag').textContent = 'جاري التحضير';
     document.getElementById('barcodeInput').focus();
   } else {
-    errBox.textContent = res.message || 'كود الطلبية غير صحيح!';
+    errBox.textContent = res.message || 'كود الطلبية غير صحيح أو غير موجود!';
     errBox.classList.remove('hidden');
   }
 }
 
 function leaveOrder() {
-  if(!confirm('هل تريد الخروج من هذه الطلبية؟')) return;
+  if(!confirm('هل تريد الخروج من شاشة التحضير؟')) return;
   if(currentScannedBarcode) {
     apiCall('UNLOCK_PRODUCT', { orderCode: currentOrderCode, barcode: currentScannedBarcode, workerName: currentUser });
   }
@@ -315,12 +203,16 @@ function leaveOrder() {
   currentScannedBarcode = null;
   document.getElementById('resultBox').innerHTML = '';
   document.getElementById('resultBox').classList.add('hidden');
+  document.getElementById('lockAlert').classList.add('hidden');
   document.getElementById('placeholder').classList.remove('hidden');
-  showScreen('homeScreen');
+  
+  document.getElementById('scanScreen').classList.add('hidden');
+  document.getElementById('loginScreen').classList.remove('hidden');
+  document.getElementById('statusTag').textContent = 'تسجيل الدخول';
 }
 
 // ==========================================
-// المسح وقفل الصنف الصارم
+// المسح وقفل المنتج اللحظي
 // ==========================================
 document.getElementById('scanForm').addEventListener('submit', async function(e){
   e.preventDefault();
@@ -330,7 +222,7 @@ document.getElementById('scanForm').addEventListener('submit', async function(e)
   document.getElementById('barcodeInput').focus();
 
   if(!currentOrderData || !currentOrderData.items[barcode]) {
-    alert('المنتج ده مش موجود في الطلبية دي!');
+    alert('المنتج ده غير مطلوب في هذه الطلبية!');
     return;
   }
 
@@ -339,7 +231,7 @@ document.getElementById('scanForm').addEventListener('submit', async function(e)
   const lockAlert = document.getElementById('lockAlert');
   resultBox.classList.remove('hidden');
   
-  showLoader('فحص حجز المنتج بالسحابة...');
+  showLoader('تحديث حالة الصنف بالسحابة...');
   const syncRes = await apiCall('GET_ORDER', { orderCode: currentOrderCode });
   hideLoader();
   
@@ -351,7 +243,7 @@ document.getElementById('scanForm').addEventListener('submit', async function(e)
     // 🛑 المنتج محجوز لشخص آخر
     lockAlert.classList.remove('hidden');
     document.getElementById('lockWorkerName').textContent = lockedBy;
-    renderResult(barcode, true); // True = Readonly قفل كامل
+    renderResult(barcode, true); // Readonly
   } else {
     // ✅ المنتج متاح أو محجوز لي
     lockAlert.classList.add('hidden');
@@ -360,7 +252,7 @@ document.getElementById('scanForm').addEventListener('submit', async function(e)
     }
     currentScannedBarcode = barcode;
     apiCall('LOCK_PRODUCT', { orderCode: currentOrderCode, barcode: barcode, workerName: currentUser });
-    renderResult(barcode, false); // False = Editable متاح
+    renderResult(barcode, false); // Editable
   }
 });
 
@@ -375,10 +267,11 @@ function renderResult(barcode, isLocked) {
     const actual = bData.actual !== undefined ? bData.actual : '';
     const actualNum = Number(actual) || 0;
     const isDone = (actual !== '' && actualNum >= targetQty);
+    const lastWorker = bData.worker ? `(${bData.worker})` : '';
     
     let actionCell = '';
     if(isLocked) {
-      actionCell = `<td style="color:var(--warn);font-weight:bold;" colspan="2">🔒 مغلق للتحضير مع (${currentOrderData.locks[barcode]})</td>`;
+      actionCell = `<td style="color:var(--warn);font-weight:bold;" colspan="2">🔒 مغلق مع المحضر (${currentOrderData.locks[barcode]})</td>`;
     } else {
       actionCell = `
         <td class="actual"><input type="number" class="actual-input sync-input" data-branch="${branchName}" data-barcode="${barcode}" value="${actual}"></td>
@@ -388,7 +281,7 @@ function renderResult(barcode, isLocked) {
     
     rowsHtml += `
       <tr class="${isDone ? 'branch-done' : ''}">
-        <td>${branchName}</td>
+        <td>${branchName} <span style="font-size:0.75rem;color:var(--muted);">${lastWorker}</span></td>
         <td class="qty">${targetQty}</td>
         ${actionCell}
       </tr>
