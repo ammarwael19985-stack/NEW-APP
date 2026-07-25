@@ -57,8 +57,8 @@
   .fill-btn:active{background:var(--accent);color:#fff;}
   tr.branch-done td{color:#9a9488;}
   tr.branch-done td.qty{text-decoration:line-through;}
-  tr.locked{background:#fbeae5 !important;}
   
+  .lock-banner{background:#fbeae5;border:2px solid var(--warn);color:var(--warn);padding:14px;border-radius:12px;font-size:1rem;font-weight:bold;text-align:center;margin-bottom:16px;}
   .error-msg{background:#fbeae5;border:1px solid #e3b6a6;color:var(--warn);padding:12px;border-radius:10px;font-size:.85rem;margin-top:10px;}
   
   #loader{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(245,243,238,0.9);z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;}
@@ -149,8 +149,8 @@
       </form>
     </div>
 
-    <div id="lockAlert" class="error-msg hidden" style="margin-bottom:16px;">
-      ⚠️ هذا المنتج يقوم بتحضيره الآن: <b id="lockWorkerName"></b> (مغلق مؤقتاً)
+    <div id="lockAlert" class="lock-banner hidden">
+      🛑 عفواً! هذا المنتج يقدم بتحضيره الآن: <span id="lockWorkerName"></span>
     </div>
 
     <div id="resultBox" class="result hidden"></div>
@@ -170,9 +170,6 @@ let currentOrderCode = '';
 let currentOrderData = null;
 let currentScannedBarcode = null;
 
-// ==========================================
-// دوال الواجهة
-// ==========================================
 document.getElementById('workerNameInput').value = currentUser;
 
 function showScreen(screenId) {
@@ -212,7 +209,7 @@ async function apiCall(action, payload) {
 }
 
 // ==========================================
-// دوال الإدارة (رفع الملف)
+// الإدارة والرفع
 // ==========================================
 document.getElementById('fileInput').addEventListener('change', async function(e){
   const file = e.target.files[0];
@@ -240,14 +237,9 @@ async function processAndUpload(rows) {
   while(rows.length > 0 && (!rows[0] || rows[0].length === 0 || rows[0].every(c => c === ''))) {
     rows.shift();
   }
-  
-  if(rows.length < 2) {
-    hideLoader();
-    alert('الملف فارغ أو غير صحيح');
-    return;
-  }
+  if(rows.length < 2) { hideLoader(); alert('الملف فارغ أو غير صحيح'); return; }
 
-  const branchStart = 2; // بافتراض أول عامودين: باركود، واسم منتج
+  const branchStart = 2;
   const header = rows[0];
   const branchNames = header.slice(branchStart).map(h => String(h).trim()).filter(Boolean);
   
@@ -280,7 +272,7 @@ async function processAndUpload(rows) {
 }
 
 // ==========================================
-// دوال العامل (الدخول والتحضير)
+// دخول العمال
 // ==========================================
 async function loginWorker() {
   const name = document.getElementById('workerNameInput').value.trim();
@@ -328,7 +320,7 @@ function leaveOrder() {
 }
 
 // ==========================================
-// نظام المسح وعرض البيانات بالتنسيق الجديد
+// المسح وقفل الصنف الصارم
 // ==========================================
 document.getElementById('scanForm').addEventListener('submit', async function(e){
   e.preventDefault();
@@ -342,33 +334,33 @@ document.getElementById('scanForm').addEventListener('submit', async function(e)
     return;
   }
 
-  if(currentScannedBarcode && currentScannedBarcode !== barcode) {
-    apiCall('UNLOCK_PRODUCT', { orderCode: currentOrderCode, barcode: currentScannedBarcode, workerName: currentUser });
-  }
-  currentScannedBarcode = barcode;
-
   document.getElementById('placeholder').classList.add('hidden');
   const resultBox = document.getElementById('resultBox');
   const lockAlert = document.getElementById('lockAlert');
   resultBox.classList.remove('hidden');
   
-  showLoader('تزامن سريع...');
+  showLoader('فحص حجز المنتج بالسحابة...');
   const syncRes = await apiCall('GET_ORDER', { orderCode: currentOrderCode });
   hideLoader();
   
   if(syncRes.success) currentOrderData = syncRes;
   
   const lockedBy = currentOrderData.locks[barcode];
+  
   if(lockedBy && lockedBy !== currentUser) {
+    // 🛑 المنتج محجوز لشخص آخر
     lockAlert.classList.remove('hidden');
     document.getElementById('lockWorkerName').textContent = lockedBy;
-    resultBox.classList.add('locked');
-    renderResult(barcode, true);
+    renderResult(barcode, true); // True = Readonly قفل كامل
   } else {
+    // ✅ المنتج متاح أو محجوز لي
     lockAlert.classList.add('hidden');
-    resultBox.classList.remove('locked');
+    if(currentScannedBarcode && currentScannedBarcode !== barcode) {
+      apiCall('UNLOCK_PRODUCT', { orderCode: currentOrderCode, barcode: currentScannedBarcode, workerName: currentUser });
+    }
+    currentScannedBarcode = barcode;
     apiCall('LOCK_PRODUCT', { orderCode: currentOrderCode, barcode: barcode, workerName: currentUser });
-    renderResult(barcode, false);
+    renderResult(barcode, false); // False = Editable متاح
   }
 });
 
@@ -386,7 +378,7 @@ function renderResult(barcode, isLocked) {
     
     let actionCell = '';
     if(isLocked) {
-      actionCell = `<td>${actual !== '' ? actual : '0'} (مغلق)</td><td></td>`;
+      actionCell = `<td style="color:var(--warn);font-weight:bold;" colspan="2">🔒 مغلق للتحضير مع (${currentOrderData.locks[barcode]})</td>`;
     } else {
       actionCell = `
         <td class="actual"><input type="number" class="actual-input sync-input" data-branch="${branchName}" data-barcode="${barcode}" value="${actual}"></td>
@@ -408,7 +400,7 @@ function renderResult(barcode, isLocked) {
     <table class="branch-table"><tbody>${rowsHtml}</tbody></table>
   `;
 
-  attachSyncEvents();
+  if(!isLocked) attachSyncEvents();
 }
 
 function attachSyncEvents() {
