@@ -1,38 +1,38 @@
-const CACHE_NAME = 'tagheez-talabat-v3';
-const ASSETS = [
+const CACHE_NAME = 'branchprep-v2-cache';
+const urlsToCache = [
+  './',
   './index.html',
   './manifest.json',
   './icon-192.png',
   './icon-512.png'
 ];
 
-self.addEventListener('install', (event) => {
+self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
+    caches.open(CACHE_NAME).then(cache => {
+      return cache.addAll(urlsToCache);
+    })
   );
   self.skipWaiting();
 });
 
-self.addEventListener('activate', (event) => {
+self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
-    )
+    caches.keys().then(cacheNames => {
+      return Promise.all(
+        cacheNames.map(cache => {
+          if (cache !== CACHE_NAME) {
+            return caches.delete(cache);
+          }
+        })
+      );
+    })
   );
   self.clients.claim();
 });
 
-// Network-first: always try to get the latest version from the server first.
-// Only fall back to the cached copy if the network request fails (e.g. offline).
-self.addEventListener('fetch', (event) => {
-  if(event.request.method !== 'GET') return;
+self.addEventListener('fetch', event => {
   event.respondWith(
-    fetch(event.request).then((response) => {
-      if (event.request.url.startsWith(self.location.origin) && response.ok) {
-        const clone = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-      }
-      return response;
-    }).catch(() => caches.match(event.request))
+    fetch(event.request).catch(() => caches.match(event.request))
   );
 });
