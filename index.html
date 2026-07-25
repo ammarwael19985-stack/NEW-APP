@@ -60,7 +60,6 @@
   tr.locked{background:#fbeae5 !important;}
   
   .error-msg{background:#fbeae5;border:1px solid #e3b6a6;color:var(--warn);padding:12px;border-radius:10px;font-size:.85rem;margin-top:10px;}
-  .success-msg{background:#e8f4ed;border:1px solid #b2d8c3;color:var(--accent-dark);padding:16px;border-radius:10px;font-size:1rem;font-weight:bold;margin-bottom:16px;}
   
   #loader{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(245,243,238,0.9);z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;}
   .spinner{width:40px;height:40px;border:4px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite;margin-bottom:16px;}
@@ -199,10 +198,12 @@ function hideLoader() {
   document.getElementById('loader').classList.add('hidden');
 }
 
+// دالة سريعة ومضمونة بدون مشاكل CORS
 async function apiCall(action, payload) {
   try {
     const response = await fetch(API_URL, {
       method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({ action: action, ...payload })
     });
     return await response.json();
@@ -267,7 +268,7 @@ async function processAndUpload(rows) {
     });
   }
 
-  showLoader('جاري رفع الطلبية للسحابة...');
+  showLoader('جاري رفع الطلبية للسحابة بسرعة...');
   const res = await apiCall('CREATE_ORDER', { branchNames, items });
   hideLoader();
 
@@ -342,7 +343,6 @@ document.getElementById('scanForm').addEventListener('submit', async function(e)
     return;
   }
 
-  // فك القفل عن المنتج القديم لو فيه
   if(currentScannedBarcode && currentScannedBarcode !== barcode) {
     apiCall('UNLOCK_PRODUCT', { orderCode: currentOrderCode, barcode: currentScannedBarcode, workerName: currentUser });
   }
@@ -353,27 +353,23 @@ document.getElementById('scanForm').addEventListener('submit', async function(e)
   const lockAlert = document.getElementById('lockAlert');
   resultBox.classList.remove('hidden');
   
-  // تحديث البيانات لحظياً قبل العرض للتأكد من القفل
   showLoader('تزامن سريع...');
   const syncRes = await apiCall('GET_ORDER', { orderCode: currentOrderCode });
   hideLoader();
   
   if(syncRes.success) currentOrderData = syncRes;
   
-  // فحص القفل
   const lockedBy = currentOrderData.locks[barcode];
   if(lockedBy && lockedBy !== currentUser) {
-    // مقفول من عامل آخر
     lockAlert.classList.remove('hidden');
     document.getElementById('lockWorkerName').textContent = lockedBy;
     resultBox.classList.add('locked');
-    renderResult(barcode, true); // True = Readonly
+    renderResult(barcode, true);
   } else {
-    // متاح، قفلناه لينا
     lockAlert.classList.add('hidden');
     resultBox.classList.remove('locked');
     apiCall('LOCK_PRODUCT', { orderCode: currentOrderCode, barcode: barcode, workerName: currentUser });
-    renderResult(barcode, false); // False = Editable
+    renderResult(barcode, false);
   }
 });
 
@@ -384,7 +380,7 @@ function renderResult(barcode, isLocked) {
   
   currentOrderData.branchNames.forEach((branch, idx) => {
     const targetQty = Number(item.qtys[idx]) || 0;
-    if(targetQty === 0) return; // تجاهل الفروع اللي مش طالبة
+    if(targetQty === 0) return;
     
     const actual = prepState[branch] ? prepState[branch].actual : '';
     const actualNum = Number(actual) || 0;
@@ -429,10 +425,8 @@ function attachSyncEvents() {
       
       this.closest('tr').classList.add('branch-done');
       
-      // رفع التحديث للسحابة في الخلفية
       apiCall('UPDATE_QTY', { orderCode: currentOrderCode, barcode: barcode, branch: branch, actualQty: target, workerName: currentUser });
       
-      // تحديث البيانات المحلية عشان لو العامل فتح صنف تاني ورجع
       if(!currentOrderData.prepState[barcode]) currentOrderData.prepState[barcode] = {};
       currentOrderData.prepState[barcode][branch] = { actual: target, worker: currentUser };
     };
