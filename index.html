@@ -59,7 +59,6 @@
     padding:6px 12px; font-size:.75rem; color:var(--warn); cursor:pointer;
   }
 
-  /* شريط التحذير الأحمـر البارز */
   .worker-warning {
     background:#fbeae5; border:2px solid var(--warn); color:var(--warn);
     padding:12px 14px; border-radius:10px; font-weight:bold; font-size:0.95rem;
@@ -128,6 +127,7 @@
     <h1>BranchPrep <span style="background:var(--accent);color:#fff;font-size:.62rem;padding:2px 8px;border-radius:10px;vertical-align:middle;">تحضير الفروع</span></h1>
     <span class="tag" id="statusTag">جاهز</span>
   </header>
+
   <div id="loginScreen">
     <div class="login-card">
       <h2 style="margin-top:0;">مرحباً بك 📦</h2>
@@ -167,7 +167,6 @@
     </div>
   </div>
 </div>
-
 <script>
 var DB_URL = "https://branchprep-default-rtdb.firebaseio.com";
 var workerName = "";
@@ -235,10 +234,12 @@ function openScanScreen() {
   document.getElementById('scanScreen').style.display = 'block';
   document.getElementById('statusTag').textContent = 'جاهز للمسح';
   safeFocus();
-  
-  // تشغيل الفحص اللحظي الخفيف كل ثانيتين للمزامنة والتنبيه
+
   if (!pollInterval) {
-    pollInterval = setInterval(fetchLatestData, 2000);
+    pollInterval = setInterval(function() {
+      fetchLatestData();
+      if (currentCode) announceActiveWorker(currentCode);
+    }, 2500);
   }
 }
 
@@ -324,9 +325,11 @@ document.getElementById('scanForm').addEventListener('submit', function(e) {
   safeFocus();
 });
 
-// إرسال إشارة تواجد العامل على هذا المنتج
+// حفظ اسم كل عامل برقم معرف خاص باسمه دون أن يمسح الآخرين
 function announceActiveWorker(code) {
-  fetch(DB_URL + '/orders/' + orderCode + '/items/' + code + '/activeWorker.json', {
+  if (!workerName || !code) return;
+  var cleanWorkerKey = workerName.replace(/[.#$\[\]]/g, "_");
+  fetch(DB_URL + '/orders/' + orderCode + '/items/' + code + '/activeWorkers/' + cleanWorkerKey + '.json', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name: workerName, timestamp: Date.now() })
@@ -343,15 +346,19 @@ function renderResult(code, row, focusBranch) {
 
   if (focusBranch !== undefined) activeBranch = focusBranch;
 
-  // 1. فحص العامل الموجود حالياً على الصفحة
-  if (row.activeWorker && row.activeWorker.name && row.activeWorker.name !== workerName) {
-    // التنبيه يظل نشطاً إذا قام بمسحه خلال آخر 10 دقائق
-    if (Date.now() - row.activeWorker.timestamp < 600000) {
-      otherWorkersSet[row.activeWorker.name] = true;
-    }
+  // 1. فحص جميع العمال المتواجدين حالياً على الصفحة (خلال آخر دقيقتين)
+  if (row.activeWorkers) {
+    Object.keys(row.activeWorkers).forEach(function(key) {
+      var wObj = row.activeWorkers[key];
+      if (wObj && wObj.name && wObj.name !== workerName) {
+        if (Date.now() - wObj.timestamp < 120000) {
+          otherWorkersSet[wObj.name] = true;
+        }
+      }
+    });
   }
 
-  // 2. فحص العمال الذين قاموا بإدخال كميات في الفروع
+  // 2. فحص العمال الذين قاموا بتسجيل كميات سابقة
   branchNames.forEach(function(bName) {
     var bData = (row.branches && row.branches[bName]) ? row.branches[bName] : { target:0, actual:"", worker:"" };
     var qtyNum = Number(bData.target) || 0;
@@ -392,7 +399,7 @@ function renderResult(code, row, focusBranch) {
       '</tr>';
   });
 
-  // إظهار الشريط الأحمر فوراً
+  // إظهار الشريط الأحمر بثبات لكل عامل يرى باقي العمال
   var otherWorkersArr = Object.keys(otherWorkersSet);
   var warnBox = document.getElementById('workerWarning');
   if (otherWorkersArr.length > 0) {
