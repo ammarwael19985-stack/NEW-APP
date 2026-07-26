@@ -59,6 +59,7 @@
     padding:6px 12px; font-size:.75rem; color:var(--warn); cursor:pointer;
   }
 
+  /* شريط التحذير الأحمـر البارز */
   .worker-warning {
     background:#fbeae5; border:2px solid var(--warn); color:var(--warn);
     padding:12px 14px; border-radius:10px; font-weight:bold; font-size:0.95rem;
@@ -127,7 +128,6 @@
     <h1>BranchPrep <span style="background:var(--accent);color:#fff;font-size:.62rem;padding:2px 8px;border-radius:10px;vertical-align:middle;">تحضير الفروع</span></h1>
     <span class="tag" id="statusTag">جاهز</span>
   </header>
-
   <div id="loginScreen">
     <div class="login-card">
       <h2 style="margin-top:0;">مرحباً بك 📦</h2>
@@ -177,6 +177,7 @@ var branchNames = [];
 var historyListArr = [];
 var currentCode = null;
 var activeBranch = null;
+var pollInterval = null;
 
 try {
   workerName = localStorage.getItem('bp_worker') || "";
@@ -234,10 +235,15 @@ function openScanScreen() {
   document.getElementById('scanScreen').style.display = 'block';
   document.getElementById('statusTag').textContent = 'جاهز للمسح';
   safeFocus();
+  
+  // تشغيل الفحص اللحظي الخفيف كل ثانيتين للمزامنة والتنبيه
+  if (!pollInterval) {
+    pollInterval = setInterval(fetchLatestData, 2000);
+  }
 }
 
 function fetchLatestData() {
-  document.getElementById('statusTag').textContent = 'جاري التحديث...';
+  if (!orderCode) return;
   fetch(DB_URL + '/orders/' + orderCode + '.json')
     .then(function(res) { return res.json(); })
     .then(function(data) {
@@ -252,41 +258,22 @@ function fetchLatestData() {
         });
         branchNames = Object.keys(branchesSet);
         document.getElementById('statusTag').textContent = 'جاهز للمسح';
-        startLiveSync();
+        
         if (currentCode && itemsData[currentCode]) {
           renderResult(currentCode, itemsData[currentCode], activeBranch);
         }
-      } else {
-        alert('كود الطلبية غير موجود أو تم إنهاؤها!');
-        logout();
       }
     })
-    .catch(function(err) {
-      document.getElementById('statusTag').textContent = 'متصل محلياً';
-    });
+    .catch(function(err) {});
 }
 
 function logout() {
+  if (pollInterval) clearInterval(pollInterval);
   try {
     localStorage.removeItem('bp_worker');
     localStorage.removeItem('bp_code');
   } catch(e){}
   location.reload();
-}
-
-function startLiveSync() {
-  try {
-    var es = new EventSource(DB_URL + '/orders/' + orderCode + '.json');
-    es.onmessage = function(e) {
-      var data = JSON.parse(e.data);
-      if (data && data.items) {
-        itemsData = data.items;
-        if (currentCode && itemsData[currentCode]) {
-          renderResult(currentCode, itemsData[currentCode], activeBranch);
-        }
-      }
-    };
-  } catch(e){}
 }
 
 function safeFocus() {
@@ -337,14 +324,16 @@ document.getElementById('scanForm').addEventListener('submit', function(e) {
   safeFocus();
 });
 
+// إرسال إشارة تواجد العامل على هذا المنتج
 function announceActiveWorker(code) {
-  fetch(DB_URL + '/orders/' + orderCode + '/items/' + code + '/currentWorker.json', {
+  fetch(DB_URL + '/orders/' + orderCode + '/items/' + code + '/activeWorker.json', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name: workerName, timestamp: Date.now() })
   }).catch(function(e){});
 }
-  function renderResult(code, row, focusBranch) {
+
+function renderResult(code, row, focusBranch) {
   currentCode = code;
   var total = 0;
   var doneCount = 0;
@@ -354,12 +343,15 @@ function announceActiveWorker(code) {
 
   if (focusBranch !== undefined) activeBranch = focusBranch;
 
-  if (row.currentWorker && row.currentWorker.name && row.currentWorker.name !== workerName) {
-    if (Date.now() - row.currentWorker.timestamp < 600000) {
-      otherWorkersSet[row.currentWorker.name] = true;
+  // 1. فحص العامل الموجود حالياً على الصفحة
+  if (row.activeWorker && row.activeWorker.name && row.activeWorker.name !== workerName) {
+    // التنبيه يظل نشطاً إذا قام بمسحه خلال آخر 10 دقائق
+    if (Date.now() - row.activeWorker.timestamp < 600000) {
+      otherWorkersSet[row.activeWorker.name] = true;
     }
   }
 
+  // 2. فحص العمال الذين قاموا بإدخال كميات في الفروع
   branchNames.forEach(function(bName) {
     var bData = (row.branches && row.branches[bName]) ? row.branches[bName] : { target:0, actual:"", worker:"" };
     var qtyNum = Number(bData.target) || 0;
@@ -400,6 +392,7 @@ function announceActiveWorker(code) {
       '</tr>';
   });
 
+  // إظهار الشريط الأحمر فوراً
   var otherWorkersArr = Object.keys(otherWorkersSet);
   var warnBox = document.getElementById('workerWarning');
   if (otherWorkersArr.length > 0) {
