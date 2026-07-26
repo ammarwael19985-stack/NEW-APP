@@ -250,15 +250,19 @@ async function loginToOrder() {
       workerLabel.textContent = workerName;
       codeLabel.textContent = orderCode;
 
-      // استخراج الفروع
-      const firstItem = Object.values(itemsData)[0];
-      branchNames = Object.keys(firstItem.branches || {});
+      // تجميع كافة أسماء الفروع من كل الأصناف لضمان عدم اختفاء أي فرع
+      const branchesSet = new Set();
+      Object.values(itemsData).forEach(item => {
+        if(item.branches) {
+          Object.keys(item.branches).forEach(b => branchesSet.add(b));
+        }
+      });
+      branchNames = Array.from(branchesSet);
 
       loginScreen.classList.add('hidden');
       scanScreen.classList.remove('hidden');
       statusTag.textContent = 'جاهز للمسح';
 
-      // استماع لحظي للتحديثات السحابية
       startLiveSync();
       safeFocus();
     } else {
@@ -308,7 +312,7 @@ document.getElementById('scanForm').addEventListener('submit', function(e){
 
   if(code === currentCode && itemsData[code]){
     if(activeBranch){
-      let currentVal = Number(itemsData[code].branches[activeBranch].actual) || 0;
+      let currentVal = Number(itemsData[code].branches[activeBranch] ? itemsData[code].branches[activeBranch].actual : 0) || 0;
       updateBranchActual(code, activeBranch, currentVal + 1);
     }
     barcodeInput.value = '';
@@ -351,7 +355,7 @@ function renderResult(code, row, focusBranch){
   if(focusBranch !== undefined) activeBranch = focusBranch;
 
   branchNames.forEach(function(bName){
-    const bData = row.branches[bName] || { target:0, actual:"", worker:"" };
+    const bData = (row.branches && row.branches[bName]) ? row.branches[bName] : { target:0, actual:"", worker:"" };
     const qtyNum = Number(bData.target) || 0;
     const actualVal = bData.actual;
     const actualNum = Number(actualVal) || 0;
@@ -359,7 +363,6 @@ function renderResult(code, row, focusBranch){
     total += qtyNum;
     const isZero = qtyNum === 0;
 
-    // فحص التحذير اللحظي: هل كُتب فيه واسم العامل مختلف عني؟
     if(bData.worker && bData.worker !== workerName) {
       otherWorkerName = bData.worker;
     }
@@ -389,7 +392,6 @@ function renderResult(code, row, focusBranch){
       '</tr>';
   });
 
-  // إظهار تنبيه العمل المزدوج
   if(otherWorkerName) {
     workerWarning.style.display = 'block';
     workerWarning.innerHTML = `⚠️ تنبيه: العامل (<b>${otherWorkerName}</b>) شغال على هذا المنتج حالياً!`;
@@ -406,9 +408,12 @@ function renderResult(code, row, focusBranch){
     '<table class="branch-table"><tbody>' + rowsHtml + '</tbody></table>';
 }
 
-// التحديث والرفع للـ Firebase
 async function updateBranchActual(code, branch, val) {
   if(!code || !branch) return;
+  
+  if(!itemsData[code].branches[branch]) {
+    itemsData[code].branches[branch] = { target:0, actual:"", worker:"" };
+  }
   
   itemsData[code].branches[branch].actual = val;
   itemsData[code].branches[branch].worker = workerName;
@@ -426,7 +431,6 @@ async function updateBranchActual(code, branch, val) {
   }
 }
 
-// الضغط على زر الملء التلقائي (⚡)
 resultBox.addEventListener('click', function(e){
   const btn = e.target.closest('.fill-btn');
   if(!btn || !currentCode) return;
@@ -435,12 +439,11 @@ resultBox.addEventListener('click', function(e){
   const branch = btn.getAttribute('data-branch');
   if(!branch) return;
 
-  const targetQty = itemsData[currentCode].branches[branch].target;
+  const targetQty = itemsData[currentCode].branches[branch] ? itemsData[currentCode].branches[branch].target : 0;
   updateBranchActual(currentCode, branch, targetQty);
   safeFocus();
 });
 
-// الضغط على الفرع لاختياره
 resultBox.addEventListener('click', function(e){
   const tr = e.target.closest('tr[data-branch]');
   if(!tr || !currentCode) return;
@@ -454,7 +457,6 @@ resultBox.addEventListener('click', function(e){
   safeFocus();
 });
 
-// التعديل اليدوي للرقم
 resultBox.addEventListener('change', function(e){
   const input = e.target.closest('.actual-input');
   if(!input || !currentCode) return;
