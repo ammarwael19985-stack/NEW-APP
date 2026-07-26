@@ -42,7 +42,7 @@
   }
   .code-num { font-size:2.4rem; font-weight:900; color:var(--accent-dark); letter-spacing:2px; }
 
-  /* كارت العمال المتواجدين في الجلسة */
+  /* كارت العمال المتواجدين حالياً */
   .workers-card {
     background:#faf8f2; border:1px solid var(--line); border-radius:12px;
     padding:14px 18px; margin-bottom:20px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;
@@ -192,7 +192,7 @@ function handleFileUpload(e) {
 
   var reader = new FileReader();
   reader.onload = function(evt) {
-    var data = new Uint8Array(evt.result);
+    var data = new Uint8Array(evt.target.result);
     var workbook = XLSX.read(data, { type: 'array' });
     var firstSheet = workbook.Sheets[workbook.SheetNames[0]];
     var jsonData = XLSX.utils.sheet_to_json(firstSheet);
@@ -300,9 +300,9 @@ function renderAdminDashboard() {
     var hasAnyActual = false;
     var chipsHtml = '';
 
-    // قراءة العمال الشغالين حالياً من الأقفال النشطة في الأصناف
+    // قراءة العمال الشغالين حياً فقط (خلال آخر 10 ثوانٍ)
     if (row.lock && row.lock.worker) {
-      if (Date.now() - row.lock.timestamp < 15000) {
+      if (Date.now() - row.lock.timestamp < 10000) {
         activeWorkersMap[row.lock.worker] = true;
       }
     }
@@ -318,11 +318,6 @@ function renderAdminDashboard() {
 
         if (b.actual !== "") {
           hasAnyActual = true;
-        }
-
-        // تسجيل العامل المشارك بالتحضير
-        if (b.worker && b.worker.trim() !== "") {
-          activeWorkersMap[b.worker] = true;
         }
 
         if (t > 0) {
@@ -342,7 +337,7 @@ function renderAdminDashboard() {
     }
 
     // إظهار الصنف في القائمة فقط لو اتلم منه حاجة زى زمان
-    if (hasAnyActual || (row.lock && Date.now() - row.lock.timestamp < 15000)) {
+    if (hasAnyActual || (row.lock && Date.now() - row.lock.timestamp < 10000)) {
       activeRowsCount++;
       var statusBadge = isItemDone ? '<span class="badge badge-done">مكتمل</span>' : '<span class="badge badge-prog">قيد التحضير</span>';
 
@@ -355,7 +350,7 @@ function renderAdminDashboard() {
     }
   });
 
-  // 1. عرض أسماء العمال المتواجدين في الجلسة
+  // 1. عرض أسماء العمال المتواجدين حالياً (يختفي فور الخروج وعدم التواجد)
   var workersArr = Object.keys(activeWorkersMap);
   var workersListDiv = document.getElementById('activeWorkersList');
   if (workersArr.length > 0) {
@@ -396,7 +391,6 @@ function closeOrder(skipConfirm) {
   document.getElementById('statusTag').textContent = 'جاهز';
 }
 
-// تصدير الشيت بنمط التنسيق المباشر والقديم (كل فرع تحت بعضه)
 function exportToExcel() {
   if (!activeOrderData) return;
   var exportRows = [];
