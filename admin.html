@@ -108,7 +108,7 @@
     <button class="file-btn" onclick="document.getElementById('excelFile').click()">اختيار ملف الإكسيل 📁</button>
   </div>
 
-  <!-- شاشة المتابعة الحية عند وجود طلبية قائمة -->
+  <!-- شاشة المتابعة الحية -->
   <div id="activeOrderSection" class="card" style="display:none;">
     <div class="code-display">
       <div>
@@ -131,7 +131,7 @@
 
     <!-- شبكة مؤشرات الإنجاز المزدوجة -->
     <div class="progress-grid">
-      <!-- 1. مؤشر نسبة الأصناف / المنتجات -->
+      <!-- 1. مؤشر نسبة الأصناف -->
       <div class="prog-card">
         <div class="prog-title">
           <span>📦 نسبة إنجاز الأصناف (المنتجات):</span>
@@ -302,9 +302,9 @@ function renderAdminDashboard() {
     var hasAnyActual = false;
     var chipsHtml = '';
 
-    // جمع أقفال العمال النشطين في الصفحة حالياً
+    // جمع العمال المتواجدين شغالين حالياً على أي صنف خلال آخر 6 ثواني فقط
     if (row.lock && row.lock.worker) {
-      if (Date.now() - row.lock.timestamp < 10000) {
+      if (Date.now() - row.lock.timestamp < 6000) {
         activeWorkersMap[row.lock.worker] = true;
       }
     }
@@ -320,10 +320,6 @@ function renderAdminDashboard() {
 
         if (b.actual !== "") {
           hasAnyActual = true;
-        }
-
-        if (b.worker && b.worker.trim() !== "") {
-          activeWorkersMap[b.worker] = true;
         }
 
         if (t > 0) {
@@ -342,8 +338,8 @@ function renderAdminDashboard() {
       completedItemsCount++;
     }
 
-    // إظهار الصنف في الجدول فقط إذا تم البدء في تحضيره فعلياً (مثل النظام السابق)
-    if (hasAnyActual || (row.lock && Date.now() - row.lock.timestamp < 10000)) {
+    // إظهار الصنف في الجدول فقط إذا تم البدء في تحضيره فعلياً
+    if (hasAnyActual || (row.lock && Date.now() - row.lock.timestamp < 6000)) {
       activeRowsCount++;
       var statusBadge = isItemDone ? '<span class="badge badge-done">مكتمل</span>' : '<span class="badge badge-prog">قيد التحضير</span>';
 
@@ -356,7 +352,7 @@ function renderAdminDashboard() {
     }
   });
 
-  // 1. عرض العمال الشغالين حالياً
+  // 1. عرض العمال المتواجدين حالياً (يختفي فور الخروج)
   var workersArr = Object.keys(activeWorkersMap);
   var workersListDiv = document.getElementById('activeWorkersList');
   if (workersArr.length > 0) {
@@ -397,31 +393,33 @@ function closeOrder(skipConfirm) {
   document.getElementById('statusTag').textContent = 'جاهز';
 }
 
+// تصدير الشيت بنمط التنسيق المباشر (كل فرع تحت بعضه برقم منفصل)
 function exportToExcel() {
   if (!activeOrderData) return;
   var exportRows = [];
 
   Object.keys(activeOrderData).forEach(function(code) {
     var row = activeOrderData[code];
-    var exportObj = {
-      'الباركود': code,
-      'اسم المنتج': row.product || ''
-    };
+    var productName = row.product || '';
 
     if (row.branches) {
       Object.keys(row.branches).forEach(function(bName) {
         var b = row.branches[bName];
-        exportObj[bName + ' (المطلوب)'] = b.target || 0;
-        exportObj[bName + ' (المحضر)'] = b.actual || 0;
-        exportObj[bName + ' (المحضر)'] = b.worker || '';
+        exportRows.push({
+          'الباركود': code,
+          'اسم المنتج': productName,
+          'الفرع': bName,
+          'الكمية المطلوبة': b.target || 0,
+          'الكمية المحضرة': b.actual === "" ? 0 : Number(b.actual) || 0,
+          'اسم المحضر': b.worker || ''
+        });
       });
     }
-    exportRows.push(exportObj);
   });
 
   var ws = XLSX.utils.json_to_sheet(exportRows);
   var wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "تقرير التحضير");
+  XLSX.utils.book_append_sheet(wb, ws, "تقرير التحضير المفصل");
   XLSX.writeFile(wb, "تقرير_التحضير_طلبية_" + activeOrderCode + ".xlsx");
 }
 
