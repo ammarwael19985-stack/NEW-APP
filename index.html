@@ -10,85 +10,31 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
-  :root{
-    --ink:#12181f;
-    --paper:#f5f3ee;
-    --panel:#ffffff;
-    --line:#dcd6c9;
-    --accent:#1f6f5c;
-    --accent-dark:#154d40;
-    --warn:#b3452b;
-    --muted:#6b6459;
-  }
+  :root{ --ink:#12181f; --paper:#f5f3ee; --panel:#ffffff; --line:#dcd6c9; --accent:#1f6f5c; --accent-dark:#154d40; --warn:#b3452b; --muted:#6b6459; }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
-  body{
-    background:var(--paper);
-    color:var(--ink);
-    font-family:'Tahoma','Segoe UI',sans-serif;
-    min-height:100vh;
-  }
-  .wrap{
-    max-width:720px;
-    margin:0 auto;
-    padding:20px 16px 60px;
-  }
-  header{
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    padding:14px 4px 20px;
-    border-bottom:2px solid var(--ink);
-    margin-bottom:22px;
-  }
+  body{ background:var(--paper); color:var(--ink); font-family:'Tahoma','Segoe UI',sans-serif; min-height:100vh; }
+  .wrap{ max-width:720px; margin:0 auto; padding:20px 16px 60px; }
+  header{ display:flex; align-items:center; justify-content:space-between; padding:14px 4px 20px; border-bottom:2px solid var(--ink); margin-bottom:22px; }
   header h1{font-size:1.15rem;margin:0;font-weight:800;}
-  header .tag{
-    font-size:.7rem;color:var(--muted);
-    border:1px solid var(--line);padding:3px 8px;border-radius:20px;
-  }
+  header .tag{ font-size:.7rem;color:var(--muted); border:1px solid var(--line);padding:3px 8px;border-radius:20px; }
   
-  .login-card{
-    background:var(--panel);border:1px solid var(--line);
-    border-radius:14px;padding:34px 22px;text-align:center;
-  }
-  .login-card input {
-    width:100%; padding:14px; margin-bottom:12px; border-radius:10px;
-    border:1px solid var(--line); font-size:1.1rem; text-align:center; font-weight:bold;
-  }
+  .login-card{ background:var(--panel);border:1px solid var(--line); border-radius:14px;padding:34px 22px;text-align:center; }
+  .login-card input { width:100%; padding:14px; margin-bottom:12px; border-radius:10px; border:1px solid var(--line); font-size:1.1rem; text-align:center; font-weight:bold; }
   .login-card input:focus { outline:2px solid var(--accent); }
 
-  .file-btn{
-    display:inline-block;background:var(--accent);color:#fff;
-    padding:13px 28px;border-radius:10px;font-weight:700;
-    font-size:.95rem;cursor:pointer;border:none;width:100%;
-  }
+  .file-btn{ display:inline-block;background:var(--accent);color:#fff; padding:13px 28px;border-radius:10px;font-weight:700; font-size:.95rem;cursor:pointer;border:none;width:100%; }
   .file-btn:active{background:var(--accent-dark);}
 
-  .status-bar{
-    display:flex;justify-content:space-between;align-items:center;
-    background:var(--panel);border:1px solid var(--line);
-    border-radius:12px;padding:10px 14px;margin-bottom:16px;
-    font-size:.78rem;color:var(--muted);
-  }
+  .status-bar{ display:flex;justify-content:space-between;align-items:center; background:var(--panel);border:1px solid var(--line); border-radius:12px;padding:10px 14px;margin-bottom:16px; font-size:.78rem;color:var(--muted); }
   .status-bar b{color:var(--ink);}
-  .status-bar button{
-    background:none;border:1px solid var(--line);border-radius:8px;
-    padding:6px 12px;font-size:.75rem;color:var(--warn);cursor:pointer;
-  }
+  .status-bar button{ background:none;border:1px solid var(--line);border-radius:8px; padding:6px 12px;font-size:.75rem;color:var(--warn);cursor:pointer; }
 
-  .worker-warning {
-    background:#fbeae5; border:2px solid var(--warn); color:var(--warn);
-    padding:12px 14px; border-radius:10px; font-weight:bold; font-size:0.95rem;
-    margin-bottom:14px; text-align:center; display:none;
-    box-shadow: 0 4px 10px rgba(179,69,43,0.15);
-  }
+  .worker-warning { background:#fbeae5; border:2px solid var(--warn); color:var(--warn); padding:12px 14px; border-radius:10px; font-weight:bold; font-size:0.95rem; margin-bottom:14px; text-align:center; display:none; box-shadow: 0 4px 10px rgba(179,69,43,0.15); }
 
   .scan-box{background:var(--ink);border-radius:14px;padding:20px;margin-bottom:18px;}
   .scan-box label{color:#c9c2b3;font-size:.8rem;display:block;margin-bottom:8px;}
-  .scan-box input{
-    width:100%;padding:16px 14px;font-size:1.3rem;border-radius:10px;
-    border:none;text-align:center;letter-spacing:1px;font-weight:700;
-  }
+  .scan-box input{ width:100%;padding:16px 14px;font-size:1.3rem;border-radius:10px; border:none;text-align:center;letter-spacing:1px;font-weight:700; }
   .scan-box input:focus{outline:3px solid var(--accent);}
   
   .result{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:16px;}
@@ -104,17 +50,8 @@
   .total-row td.qty{color:var(--ink);font-size:1.3rem;}
   
   .branch-table td.check{width:38px;text-align:center;padding:0 2px;}
-  .fill-btn{
-    background:#faf8f2;border:1px solid var(--line);
-    border-radius:8px;width:32px;height:32px;
-    display:inline-flex;align-items:center;justify-content:center;
-    cursor:pointer;font-size:1rem;color:var(--accent-dark);
-    transition:all 0.15s ease;
-  }
-  .fill-btn:active{
-    background:var(--accent);color:#fff;border-color:var(--accent);
-    transform:scale(0.92);
-  }
+  .fill-btn{ background:#faf8f2;border:1px solid var(--line); border-radius:8px;width:32px;height:32px; display:inline-flex;align-items:center;justify-content:center; cursor:pointer;font-size:1rem;color:var(--accent-dark); transition:all 0.15s ease; }
+  .fill-btn:active{ background:var(--accent);color:#fff;border-color:var(--accent); transform:scale(0.92); }
   
   tr.branch-done td{color:#9a9488;}
   tr.branch-done td.qty{color:#9a9488;text-decoration:line-through;}
@@ -124,16 +61,261 @@
   .branch-table tr.selected{background:#eef3ee;}
   .progress-note{font-size:.78rem;color:var(--muted);margin-bottom:14px;}
   .branch-table td.actual{width:78px;padding:6px 4px;}
-  .actual-input{
-    width:100%;padding:8px 4px;border:1px solid var(--line);border-radius:8px;
-    text-align:center;font-size:1rem;font-weight:700;color:var(--ink);background:#faf8f2;
-  }
+  .actual-input{ width:100%;padding:8px 4px;border:1px solid var(--line);border-radius:8px; text-align:center;font-size:1rem;font-weight:700;color:var(--ink);background:#faf8f2; }
   .actual-input:focus{outline:2px solid var(--accent);border-color:var(--accent);}
   .branch-table td.zero-note{color:#b7b1a3;font-size:.8rem;text-align:center;}
-  .not-found{
-    background:#fbeae5;border:1px solid #e3b6a6;color:var(--warn);
-    border-radius:14px;padding:24px;text-align:center;font-size:1rem;font-weight:700;
-  }
+  .not-found{ background:#fbeae5;border:1px solid #e3b6a6;color:var(--warn); border-radius:14px;padding:24px;text-align:center;font-size:1rem;font-weight:700; }
   .not-found .code{display:block;margin-top:6px;font-weight:400;font-size:.85rem;direction:ltr;}
   .placeholder{text-align:center;color:var(--muted);padding:40px 10px;font-size:.9rem;}
-  .history{margin-top:22
+  .history{margin-top:22px;}
+  .history h3{font-size:.8rem;color:var(--muted);margin:0 0 10px;font-weight:700;}
+  .history-item{display:flex;justify-content:space-between;padding:8px 4px;font-size:.82rem;border-bottom:1px solid var(--line);}
+  .history-item span.code{color:var(--muted);direction:ltr;}
+  .error-msg{background:#fbeae5;border:1px solid #e3b6a6;color:var(--warn);padding:12px 14px;border-radius:10px;font-size:.85rem;margin-top:16px;}
+  .hidden{display:none !important;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>BranchPrep <span style="background:var(--accent);color:#fff;font-size:.62rem;padding:2px 8px;border-radius:10px;vertical-align:middle;">تحضير الفروع</span></h1>
+    <span class="tag" id="statusTag">جاهز</span>
+  </header>
+
+  <div id="loginScreen">
+    <div class="login-card">
+      <h2 style="margin-top:0;">مرحباً بك 📦</h2>
+      <p style="color:var(--muted); font-size:0.85rem; margin-bottom:20px;">ادخل اسمك وكود الطلبية من الكمبيوتر للبدء</p>
+      <input type="text" id="workerNameInput" placeholder="اسم العامل (مثال: عمار)" />
+      <input type="number" id="orderCodeInput" placeholder="كود الطلبية (4 أرقام)" />
+      <button class="file-btn" id="loginBtn" onclick="loginToOrder()">دخول للتحضير 🚀</button>
+      <div class="error-msg hidden" id="loginError"></div>
+    </div>
+  </div>
+
+  <div id="scanScreen" class="hidden">
+    <div class="status-bar">
+      <span>العامل: <b id="workerLabel">-</b> | الطلبية: <b id="codeLabel">-</b></span>
+      <div>
+        <button onclick="loginToOrder(true)" style="color:var(--accent); margin-left:8px;">تحديث 🔄</button>
+        <button id="logoutBtn" onclick="logout()">خروج 🚪</button>
+      </div>
+    </div>
+
+    <div class="scan-box">
+      <label>اضرب الباركود دلوقتي</label>
+      <form id="scanForm">
+        <input type="text" id="barcodeInput" inputmode="none" placeholder="امسح الباركود واضغط Enter" autocomplete="off" />
+      </form>
+    </div>
+
+    <div id="workerWarning" class="worker-warning"></div>
+
+    <div id="placeholder" class="placeholder">استنى مسح أول باركود عشان تطلعلك الكميات هنا</div>
+    <div id="resultBox" class="result hidden"></div>
+    <div id="notFoundBox" class="not-found hidden"></div>
+
+    <div class="history hidden" id="historyBox">
+      <h3>آخر عمليات المسح</h3>
+      <div id="historyList"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const DB_URL = "https://branchprep-default-rtdb.firebaseio.com";
+let workerName = localStorage.getItem('bp_worker') || "";
+let orderCode = localStorage.getItem('bp_code') || "";
+let itemsData = {};
+let branchNames = [];
+let history = [];
+let currentCode = null;
+let activeBranch = null;
+
+const loginScreen = document.getElementById('loginScreen');
+const scanScreen = document.getElementById('scanScreen');
+const statusTag = document.getElementById('statusTag');
+const loginError = document.getElementById('loginError');
+const workerLabel = document.getElementById('workerLabel');
+const codeLabel = document.getElementById('codeLabel');
+const barcodeInput = document.getElementById('barcodeInput');
+const placeholder = document.getElementById('placeholder');
+const resultBox = document.getElementById('resultBox');
+const notFoundBox = document.getElementById('notFoundBox');
+const historyBox = document.getElementById('historyBox');
+const historyList = document.getElementById('historyList');
+const workerWarning = document.getElementById('workerWarning');
+const loginBtn = document.getElementById('loginBtn');
+
+barcodeInput.addEventListener('click', function() {
+  this.removeAttribute('inputmode');
+});
+
+window.addEventListener('DOMContentLoaded', () => {
+  if (workerName && orderCode) {
+    document.getElementById('workerNameInput').value = workerName;
+    document.getElementById('orderCodeInput').value = orderCode;
+    loginToOrder(true);
+  }
+});
+
+async function loginToOrder(isAuto = false) {
+  const wName = document.getElementById('workerNameInput').value.trim();
+  const oCode = document.getElementById('orderCodeInput').value.trim();
+
+  if(!wName || !oCode) {
+    showLoginError('برجاء كتابة الاسم وكود الطلبية المكون من 4 أرقام');
+    return;
+  }
+
+  loginError.classList.add('hidden');
+  
+  if(!isAuto) {
+    loginBtn.textContent = 'جاري الاتصال... ⏳';
+    loginBtn.disabled = true;
+  }
+  
+  try {
+    const res = await fetch(`${DB_URL}/orders/${oCode}.json`);
+    const data = await res.json();
+
+    if(!isAuto) {
+      loginBtn.textContent = 'دخول للتحضير 🚀';
+      loginBtn.disabled = false;
+    }
+
+    if (data && data.items) {
+      workerName = wName;
+      orderCode = oCode;
+      itemsData = data.items;
+
+      localStorage.setItem('bp_worker', workerName);
+      localStorage.setItem('bp_code', orderCode);
+
+      workerLabel.textContent = workerName;
+      codeLabel.textContent = orderCode;
+
+      const branchesSet = new Set();
+      Object.values(itemsData).forEach(item => {
+        if(item.branches) {
+          Object.keys(item.branches).forEach(b => branchesSet.add(b));
+        }
+      });
+      branchNames = Array.from(branchesSet);
+
+      loginScreen.classList.add('hidden');
+      scanScreen.classList.remove('hidden');
+      statusTag.textContent = 'جاهز للمسح';
+
+      startLiveSync();
+      safeFocus();
+    } else {
+      if(isAuto) localStorage.removeItem('bp_code');
+      showLoginError('كود الطلبية غير صحيح أو تم إنهاؤها!');
+      loginScreen.classList.remove('hidden');
+      scanScreen.classList.add('hidden');
+    }
+  } catch(err) {
+    if(!isAuto) {
+      loginBtn.textContent = 'دخول للتحضير 🚀';
+      loginBtn.disabled = false;
+      showLoginError('تعذر الاتصال بالسيرفر! تأكد من الإنترنت.');
+    }
+  }
+}
+
+function showLoginError(msg) {
+  loginError.textContent = msg;
+  loginError.classList.remove('hidden');
+}
+
+function logout() {
+  if(confirm('هل تريد الخروج؟')) {
+    localStorage.removeItem('bp_worker');
+    localStorage.removeItem('bp_code');
+    location.reload();
+  }
+}
+
+function startLiveSync() {
+  const es = new EventSource(`${DB_URL}/orders/${orderCode}.json`);
+  es.onmessage = (e) => {
+    const data = JSON.parse(e.data);
+    if(data && data.items) {
+      itemsData = data.items;
+      if(currentCode && itemsData[currentCode]) {
+        renderResult(currentCode, itemsData[currentCode], activeBranch);
+      }
+    }
+  };
+}
+
+function safeFocus() {
+  setTimeout(() => {
+    barcodeInput.setAttribute('inputmode', 'none');
+    try {
+      barcodeInput.focus({ preventScroll: true });
+    } catch (e) {
+      barcodeInput.focus();
+    }
+  }, 100);
+}
+
+document.getElementById('scanForm').addEventListener('submit', function(e){
+  e.preventDefault();
+  const code = barcodeInput.value.trim();
+  if(!code) return;
+
+  if(code === currentCode && itemsData[code]){
+    if(activeBranch){
+      let currentVal = Number(itemsData[code].branches[activeBranch] ? itemsData[code].branches[activeBranch].actual : 0) || 0;
+      updateBranchActual(code, activeBranch, currentVal + 1);
+    }
+    barcodeInput.value = '';
+    safeFocus();
+    return;
+  }
+
+  placeholder.classList.add('hidden');
+
+  if(itemsData[code]){
+    notFoundBox.classList.add('hidden');
+    resultBox.classList.remove('hidden');
+    activeBranch = null;
+    
+    announceActiveWorker(code);
+    renderResult(code, itemsData[code]);
+
+    history.unshift({name: itemsData[code].product, code: code});
+    history = history.slice(0, 8);
+    renderHistory();
+  } else {
+    currentCode = null;
+    activeBranch = null;
+    resultBox.classList.add('hidden');
+    notFoundBox.classList.remove('hidden');
+    workerWarning.style.display = 'none';
+    notFoundBox.innerHTML = 'الباركود ده مش موجود في الطلبية <span class="code">' + escapeHtml(code) + '</span>';
+  }
+
+  barcodeInput.value = '';
+  safeFocus();
+});
+
+async function announceActiveWorker(code) {
+  try {
+    await fetch(`${DB_URL}/orders/${orderCode}/items/${code}/currentWorker.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: workerName, timestamp: Date.now() })
+    });
+  } catch(e){}
+}
+
+function renderResult(code, row, focusBranch){
+  currentCode = code;
+  let total = 0;
+  let doneCount = 0;
+  let neededCount = 0;
+  let rowsHtml = '';
+  let other
