@@ -200,9 +200,7 @@ window.onload = function() {
       fetchLatestData();
     }
   } catch(e) {}
-};
-
-function loginToOrder() {
+};function loginToOrder() {
   try {
     var wName = document.getElementById('workerNameInput').value.trim();
     var oCode = document.getElementById('orderCodeInput').value.trim();
@@ -241,13 +239,13 @@ function openScanScreen() {
   if (!pollInterval) {
     pollInterval = setInterval(function() {
       fetchLatestData();
-      sendSessionHeartbeat(); // إرسال نبضة تواجد مستمرة فور فتح الجلسة
+      sendSessionHeartbeat(); // إرسال إشارة تواجد العامل بالطلبية بصفة مستمرة
       if(currentCode) keepLockAlive(currentCode);
     }, 2000);
   }
 }
 
-// دالة إرسال التواجد العام في الجلسة (لإظهار الاسم بالبرنامج المركزي دائماً)
+// إرسال إشارة إبلاغ بأن العامل متواجد حالياً داخل جلسة التحضير
 function sendSessionHeartbeat() {
   if (!workerName || !orderCode) return;
   var cleanKey = workerName.replace(/[.#$\[\]]/g, "_");
@@ -288,7 +286,7 @@ function logout() {
   if (confirmExit) {
     if (pollInterval) clearInterval(pollInterval);
     
-    // إزالة اسم العامل فوراً عند الضغط على خروج
+    // مسح اسم العامل فوراً عند الضغط على خروج
     if (workerName && orderCode) {
       var cleanKey = workerName.replace(/[.#$\[\]]/g, "_");
       fetch(DB_URL + '/orders/' + orderCode + '/activeSessions/' + cleanKey + '.json', { method: 'DELETE' }).catch(function(e){});
@@ -536,3 +534,4 @@ function escapeHtml(str) {
 </script>
 </body>
 </html>
+  
