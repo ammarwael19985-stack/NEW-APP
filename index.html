@@ -59,6 +59,7 @@
     padding:6px 12px; font-size:.75rem; color:var(--warn); cursor:pointer;
   }
 
+  /* شريط التنبيه والأقفال */
   .worker-warning {
     background:#fbeae5; border:2px solid var(--warn); color:var(--warn);
     padding:12px 14px; border-radius:10px; font-weight:bold; font-size:0.95rem;
@@ -93,6 +94,7 @@
     cursor:pointer; font-size:1rem; color:var(--accent-dark); transition:all 0.15s ease;
   }
   .fill-btn:active { background:var(--accent); color:#fff; border-color:var(--accent); transform:scale(0.92); }
+  .fill-btn:disabled { opacity:0.3; cursor:not-allowed; }
   
   tr.branch-done td { color:#9a9488; }
   tr.branch-done td.qty { color:#9a9488; text-decoration:line-through; }
@@ -107,6 +109,8 @@
     text-align:center; font-size:1rem; font-weight:700; color:var(--ink); background:#faf8f2;
   }
   .actual-input:focus { outline:2px solid var(--accent); border-color:var(--accent); }
+  .actual-input:disabled { background:#e2ded8; color:#888; cursor:not-allowed; border-color:#ccc; }
+
   .branch-table td.zero-note { color:#b7b1a3; font-size:.8rem; text-align:center; }
   .not-found {
     background:#fbeae5; border:1px solid #e3b6a6; color:var(--warn);
@@ -238,7 +242,8 @@ function openScanScreen() {
   if (!pollInterval) {
     pollInterval = setInterval(function() {
       fetchLatestData();
-    }, 2500);
+      if(currentCode) heartbeatActiveWorker(currentCode);
+    }, 2000);
   }
 }
 
@@ -267,7 +272,6 @@ function fetchLatestData() {
     .catch(function(err) {});
 }
 
-// تأكيد الخروج قبل تنفيذ الخروج
 function logout() {
   var confirmExit = confirm("هل أنت تأكد من تسجيل الخروج؟");
   if (confirmExit) {
@@ -293,7 +297,9 @@ document.getElementById('scanForm').addEventListener('submit', function(e) {
   if (!code) return;
 
   if (code === currentCode && itemsData[code]) {
-    if (activeBranch) {
+    // التأكد أولاً من أن العامل له حق التعديل
+    var isReadOnly = checkReadOnlyStatus(itemsData[code]);
+    if (!isReadOnly && activeBranch) {
       var currentVal = Number(itemsData[code].branches && itemsData[code].branches[activeBranch] ? itemsData[code].branches[activeBranch].actual : 0) || 0;
       updateBranchActual(code, activeBranch, currentVal + 1);
     }
@@ -301,6 +307,7 @@ document.getElementById('scanForm').addEventListener('submit', function(e) {
     safeFocus();
     return;
   }
+
   document.getElementById('placeholder').style.display = 'none';
 
   if (itemsData[code]) {
@@ -308,7 +315,7 @@ document.getElementById('scanForm').addEventListener('submit', function(e) {
     document.getElementById('resultBox').style.display = 'block';
     activeBranch = null;
     
-    checkAndSetOwner(code);
+    heartbeatActiveWorker(code);
     renderResult(code, itemsData[code]);
 
     historyListArr.unshift({ name: itemsData[code].product || code, code: code });
@@ -327,17 +334,24 @@ document.getElementById('scanForm').addEventListener('submit', function(e) {
   safeFocus();
 });
 
-function checkAndSetOwner(code) {
+// تجديد وقت تواجد العامل في المنتج
+function heartbeatActiveWorker(code) {
   if (!workerName || !code) return;
-  
-  var item = itemsData[code];
-  if (!item || !item.owner || !item.owner.name || (Date.now() - item.owner.timestamp > 300000)) {
-    fetch(DB_URL + '/orders/' + orderCode + '/items/' + code + '/owner.json', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: workerName, timestamp: Date.now() })
-    }).catch(function(e){});
+  fetch(DB_URL + '/orders/' + orderCode + '/items/' + code + '/activeSession.json', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ worker: workerName, timestamp: Date.now() })
+  }).catch(function(e){});
+}
+
+function checkReadOnlyStatus(row) {
+  if (row.activeSession && row.activeSession.worker && row.activeSession.worker !== workerName) {
+    // لو فيه عامل تاني أرسل إشارة تواجد في آخر 6 ثواني
+    if (Date.now() - row.activeSession.timestamp < 6000) {
+      return row.activeSession.worker;
+    }
   }
+  return false;
 }
 
 function renderResult(code, row, focusBranch) {
@@ -346,14 +360,19 @@ function renderResult(code, row, focusBranch) {
   var doneCount = 0;
   var neededCount = 0;
   var rowsHtml = '';
-  var activeOwnersSet = {};
 
   if (focusBranch !== undefined) activeBranch = focusBranch;
 
-  if (row.owner && row.owner.name && row.owner.name !== workerName) {
-    if (Date.now() - row.owner.timestamp < 300000) {
-      activeOwnersSet[row.owner.name] = true;
-    }
+  // فحص هل العامل الأول متواجد حالياً ويملك حق التحضير
+  var activeOtherWorker = checkReadOnlyStatus(row);
+  var isReadOnly = !!activeOtherWorker;
+
+  var warnBox = document.getElementById('workerWarning');
+  if (isReadOnly) {
+    warnBox.style.display = 'block';
+    warnBox.innerHTML = '🔒 <b>تنبيه:</b> العامل (<b>' + escapeHtml(activeOtherWorker) + '</b>) متواجد حالياً على هذا المنتج!<br><small style="font-weight:normal;">التعديل معطل مؤقتاً لمنع التضارب، وسيتفعل فور خروجه.</small>';
+  } else {
+    warnBox.style.display = 'none';
   }
 
   branchNames.forEach(function(bName) {
@@ -364,10 +383,6 @@ function renderResult(code, row, focusBranch) {
     
     total += qtyNum;
     var isZero = qtyNum === 0;
-
-    if (bData.worker && bData.worker.trim() !== "" && bData.worker !== workerName) {
-      activeOwnersSet[bData.worker] = true;
-    }
 
     var actionCell;
     var doneClass = '';
@@ -381,11 +396,12 @@ function renderResult(code, row, focusBranch) {
       if (isComplete) { doneCount++; doneClass = ' branch-done'; }
       if (bName === activeBranch) selectedClass = ' selected';
 
-      actionCell =
-        '<td class="actual"><input type="number" class="actual-input" data-branch="' + escapeHtml(bName) + '" placeholder="0" value="' + escapeHtml(String(actualVal)) + '" onclick="event.stopPropagation();" /></td>' +
-        '<td class="check"><button type="button" class="fill-btn" data-branch="' + escapeHtml(bName) + '">⚡</button></td>';
-    }
+      var disabledAttr = isReadOnly ? 'disabled' : '';
 
+      actionCell =
+        '<td class="actual"><input type="number" class="actual-input" data-branch="' + escapeHtml(bName) + '" placeholder="0" value="' + escapeHtml(String(actualVal)) + '" ' + disabledAttr + ' onclick="event.stopPropagation();" /></td>' +
+        '<td class="check"><button type="button" class="fill-btn" data-branch="' + escapeHtml(bName) + '" ' + disabledAttr + '>⚡</button></td>';
+    }
     var zeroClass = isZero ? ' zero' : '';
     var workerText = bData.worker ? ' <small style="color:#217346; font-weight:bold;">(' + escapeHtml(bData.worker) + ')</small>' : '';
     
@@ -395,15 +411,6 @@ function renderResult(code, row, focusBranch) {
       actionCell +
       '</tr>';
   });
-
-  var ownersArr = Object.keys(activeOwnersSet);
-  var warnBox = document.getElementById('workerWarning');
-  if (ownersArr.length > 0) {
-    warnBox.style.display = 'block';
-    warnBox.innerHTML = '⚠️ تنبيه: العامل (<b>' + escapeHtml(ownersArr.join(' و ')) + '</b>) شغال أو بدأ بتحضير هذا المنتج!';
-  } else {
-    warnBox.style.display = 'none';
-  }
 
   rowsHtml += '<tr class="total-row"><td>الإجمالي</td><td class="qty">' + total + '</td><td></td><td></td></tr>';
 
@@ -417,6 +424,10 @@ function renderResult(code, row, focusBranch) {
 function updateBranchActual(code, branch, val) {
   if (!code || !branch) return;
   if (!itemsData[code]) return;
+  
+  // حماية إضافية تمنع الكتابة لو العامل الثاني
+  if (checkReadOnlyStatus(itemsData[code])) return;
+
   if (!itemsData[code].branches) itemsData[code].branches = {};
   if (!itemsData[code].branches[branch]) {
     itemsData[code].branches[branch] = { target:0, actual:"", worker:"" };
@@ -436,6 +447,8 @@ function updateBranchActual(code, branch, val) {
 
 var resBox = document.getElementById('resultBox');
 resBox.addEventListener('click', function(e) {
+  if (itemsData[currentCode] && checkReadOnlyStatus(itemsData[currentCode])) return;
+
   var btn = e.target.closest('.fill-btn');
   if (btn && currentCode) {
     e.stopPropagation();
@@ -461,6 +474,8 @@ resBox.addEventListener('click', function(e) {
 });
 
 resBox.addEventListener('change', function(e) {
+  if (itemsData[currentCode] && checkReadOnlyStatus(itemsData[currentCode])) return;
+  
   var input = e.target.closest('.actual-input');
   if (input && currentCode) {
     var branch = input.getAttribute('data-branch');
