@@ -3,8 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BranchPrep - لوحة التحكم المركزية</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<title>BranchPrep - تحضير الفروع بالباركود</title>
 <style>
   :root {
     --ink:#12181f;
@@ -23,399 +22,498 @@
     font-family:'Tahoma','Segoe UI',sans-serif;
     min-height:100vh;
   }
-  .wrap { max-width:1100px; margin:0 auto; padding:20px 16px 60px; }
+  .wrap { max-width:720px; margin:0 auto; padding:20px 16px 60px; }
   header {
     display:flex; align-items:center; justify-content:space-between;
     padding:14px 4px 20px; border-bottom:2px solid var(--ink); margin-bottom:22px;
   }
-  header h1 { font-size:1.3rem; margin:0; font-weight:800; }
+  header h1 { font-size:1.15rem; margin:0; font-weight:800; }
+  header .tag { font-size:.7rem; color:var(--muted); border:1px solid var(--line); padding:3px 8px; border-radius:20px; }
   
-  .card {
+  .login-card {
     background:var(--panel); border:1px solid var(--line);
-    border-radius:14px; padding:24px; margin-bottom:20px;
+    border-radius:14px; padding:34px 22px; text-align:center;
   }
-  
-  .code-display {
-    display:flex; align-items:center; justify-content:space-between;
-    background:#eef5f2; border:2px solid var(--accent); border-radius:12px; padding:16px 20px;
-    margin-bottom:20px;
+  .login-card input {
+    width:100%; padding:14px; margin-bottom:12px; border-radius:10px;
+    border:1px solid var(--line); font-size:1.1rem; text-align:center; font-weight:bold;
   }
-  .code-num { font-size:2.4rem; font-weight:900; color:var(--accent-dark); letter-spacing:2px; }
-
-  /* كارت العمال المتواجدين في الشغل */
-  .workers-card {
-    background:#faf8f2; border:1px solid var(--line); border-radius:12px;
-    padding:14px 18px; margin-bottom:20px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;
-  }
-  .workers-title { font-size:0.88rem; font-weight:bold; color:var(--ink); }
-  .worker-badge {
-    background:#e2f0d9; border:1px solid #b5d5a7; color:#1e520f;
-    padding:4px 12px; border-radius:20px; font-size:0.8rem; font-weight:bold;
-    display:inline-flex; align-items:center; gap:6px;
-  }
-  .worker-badge::before { content:'●'; color:#28a745; font-size:0.8rem; }
-
-  /* شبكة مؤشرات الإنجاز */
-  .progress-grid {
-    display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px;
-  }
-  @media(max-width:768px){ .progress-grid { grid-template-columns:1fr; } }
-
-  .prog-card {
-    background:#faf8f5; border:1px solid var(--line); border-radius:12px; padding:16px;
-  }
-  .prog-title { font-size:0.85rem; color:var(--muted); font-weight:bold; margin-bottom:6px; display:flex; justify-content:space-between; }
-  .prog-bar-bg { background:#e2ded8; height:12px; border-radius:6px; overflow:hidden; }
-  .prog-bar-fill { background:var(--accent); height:100%; width:0%; transition:width 0.4s ease; }
+  .login-card input:focus { outline:2px solid var(--accent); }
 
   .file-btn {
     display:inline-block; background:var(--accent); color:#fff;
-    padding:12px 24px; border-radius:10px; font-weight:700;
-    font-size:.95rem; cursor:pointer; border:none;
+    padding:13px 28px; border-radius:10px; font-weight:700;
+    font-size:.95rem; cursor:pointer; border:none; width:100%;
   }
-  .file-btn:hover { background:var(--accent-dark); }
-  .btn-danger { background:var(--warn); }
-  .btn-danger:hover { background:#8e331f; }
+  .file-btn:active { background:var(--accent-dark); }
 
-  .items-table { width:100%; border-collapse:collapse; margin-top:14px; }
-  .items-table th, .items-table td { padding:12px 8px; border-bottom:1px solid var(--line); text-align:right; font-size:0.9rem; }
-  .items-table th { background:#f0ece1; font-weight:bold; }
+  .status-bar {
+    display:flex; justify-content:space-between; align-items:center;
+    background:var(--panel); border:1px solid var(--line);
+    border-radius:12px; padding:10px 14px; margin-bottom:16px;
+    font-size:.78rem; color:var(--muted);
+  }
+  .status-bar b { color:var(--ink); }
+  .status-bar button {
+    background:none; border:1px solid var(--line); border-radius:8px;
+    padding:6px 12px; font-size:.75rem; color:var(--warn); cursor:pointer;
+  }
+
+  .worker-warning {
+    background:#fbeae5; border:2px solid var(--warn); color:var(--warn);
+    padding:12px 14px; border-radius:10px; font-weight:bold; font-size:0.95rem;
+    margin-bottom:14px; text-align:center; display:none;
+    box-shadow: 0 4px 10px rgba(179,69,43,0.15);
+  }
+
+  .scan-box { background:var(--ink); border-radius:14px; padding:20px; margin-bottom:18px; }
+  .scan-box label { color:#c9c2b3; font-size:.8rem; display:block; margin-bottom:8px; }
+  .scan-box input {
+    width:100%; padding:16px 14px; font-size:1.3rem; border-radius:10px;
+    border:none; text-align:center; letter-spacing:1px; font-weight:700;
+  }
+  .scan-box input:focus { outline:3px solid var(--accent); }
   
-  .badge { display:inline-block; padding:3px 8px; border-radius:6px; font-size:0.75rem; font-weight:bold; }
-  .badge-done { background:#d1e7dd; color:#0f5132; }
-  .badge-prog { background:#fff3cd; color:#664d03; }
-
-  .branch-chip {
-    display:inline-block; background:#f0f0f0; border:1px solid #ccc;
-    padding:3px 7px; border-radius:6px; font-size:0.75rem; margin:2px;
+  .result { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:20px; margin-bottom:16px; }
+  .result .pname { font-size:1.15rem; font-weight:800; margin-bottom:2px; }
+  .result .pbarcode { font-size:.78rem; color:var(--muted); margin-bottom:16px; direction:ltr; display:inline-block; }
+  .branch-table { width:100%; border-collapse:collapse; }
+  .branch-table tr { border-bottom:1px solid var(--line); }
+  .branch-table tr:last-child { border-bottom:none; }
+  .branch-table td { padding:12px 4px; font-size:1rem; }
+  .branch-table td.qty { text-align:left; font-weight:800; font-size:1.25rem; color:var(--accent-dark); white-space:nowrap; }
+  .branch-table tr.zero td.qty { color:#b7b1a3; }
+  .total-row td { font-weight:800; padding-top:14px; border-top:2px solid var(--ink); }
+  .total-row td.qty { color:var(--ink); font-size:1.3rem; }
+  
+  .branch-table td.check { width:38px; text-align:center; padding:0 2px; }
+  .fill-btn {
+    background:#faf8f2; border:1px solid var(--line); border-radius:8px;
+    width:32px; height:32px; display:inline-flex; align-items:center; justify-content:center;
+    cursor:pointer; font-size:1rem; color:var(--accent-dark); transition:all 0.15s ease;
   }
-  .branch-chip.done { background:#e2f0d9; border-color:#b5d5a7; color:#276a12; }
-  .empty-msg { text-align:center; padding:30px; color:var(--muted); font-size:0.9rem; }
+  .fill-btn:active { background:var(--accent); color:#fff; border-color:var(--accent); transform:scale(0.92); }
+  .fill-btn:disabled { opacity:0.2; cursor:not-allowed; pointer-events:none; }
+  
+  tr.branch-done td { color:#9a9488; }
+  tr.branch-done td.qty { color:#9a9488; text-decoration:line-through; }
+  tr.branch-done td:first-child { text-decoration:line-through; }
+  .branch-table tr[data-branch] { cursor:pointer; }
+  .branch-table tr.selected td:first-child { font-weight:800; color:var(--accent-dark); }
+  .branch-table tr.selected { background:#eef3ee; }
+  .progress-note { font-size:.78rem; color:var(--muted); margin-bottom:14px; }
+  .branch-table td.actual { width:78px; padding:6px 4px; }
+  .actual-input {
+    width:100%; padding:8px 4px; border:1px solid var(--line); border-radius:8px;
+    text-align:center; font-size:1rem; font-weight:700; color:var(--ink); background:#faf8f2;
+  }
+  .actual-input:focus { outline:2px solid var(--accent); border-color:var(--accent); }
+  .actual-input:disabled { background:#e2ded8 !important; color:#999 !important; cursor:not-allowed; border-color:#ccc; }
+
+  .branch-table td.zero-note { color:#b7b1a3; font-size:.8rem; text-align:center; }
+  .not-found {
+    background:#fbeae5; border:1px solid #e3b6a6; color:var(--warn);
+    border-radius:14px; padding:24px; text-align:center; font-size:1rem; font-weight:700;
+  }
+  .not-found .code { display:block; margin-top:6px; font-weight:400; font-size:.85rem; direction:ltr; }
+  .placeholder { text-align:center; color:var(--muted); padding:40px 10px; font-size:.9rem; }
+  .history { margin-top:22px; }
+  .history h3 { font-size:.8rem; color:var(--muted); margin:0 0 10px; font-weight:700; }
+  .history-item { display:flex; justify-content:space-between; padding:8px 4px; font-size:.82rem; border-bottom:1px solid var(--line); }
+  .history-item span.code { color:var(--muted); direction:ltr; }
+  .error-msg { background:#fbeae5; border:1px solid #e3b6a6; color:var(--warn); padding:12px 14px; border-radius:10px; font-size:.85rem; margin-top:16px; display:none; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
-    <h1>BranchPrep 🖥️ <span style="font-size:0.8rem; color:var(--muted);">البرنامج المركزي</span></h1>
-    <span id="statusTag" style="font-size:0.85rem; font-weight:bold; color:var(--accent);">جاهز</span>
+    <h1>BranchPrep <span style="background:var(--accent);color:#fff;font-size:.62rem;padding:2px 8px;border-radius:10px;vertical-align:middle;">تحضير الفروع</span></h1>
+    <span class="tag" id="statusTag">جاهز</span>
   </header>
 
-  <!-- شاشة رفع ملف شيت الإكسيل -->
-  <div id="uploadSection" class="card">
-    <h2 style="margin-top:0;">رفع طلبيات الفروع الجديدة 📊</h2>
-    <p style="color:var(--muted); font-size:0.9rem;">قم باختيار ملف إكسيل (.xlsx) الذي يحتوي على توزيع الفروع لتوليد كود التحضير للموبايلات.</p>
-    <input type="file" id="excelFile" accept=".xlsx, .xls" style="display:none;" onchange="handleFileUpload(event)">
-    <button class="file-btn" onclick="document.getElementById('excelFile').click()">اختيار ملف الإكسيل 📁</button>
+  <div id="loginScreen">
+    <div class="login-card">
+      <h2 style="margin-top:0;">مرحباً بك 📦</h2>
+      <p style="color:var(--muted); font-size:0.85rem; margin-bottom:20px;">ادخل اسمك وكود الطلبية من الكمبيوتر للبدء</p>
+      <input type="text" id="workerNameInput" placeholder="اسم العامل (مثال: عمار)" />
+      <input type="number" id="orderCodeInput" placeholder="كود الطلبية (4 أرقام)" />
+      <button class="file-btn" id="loginBtn" type="button" onclick="loginToOrder()">دخول للتحضير 🚀</button>
+      <div class="error-msg" id="loginError"></div>
+    </div>
   </div>
 
-  <!-- شاشة المتابعة الحية -->
-  <div id="activeOrderSection" class="card" style="display:none;">
-    <div class="code-display">
+  <div id="scanScreen" style="display:none;">
+    <div class="status-bar">
+      <span>العامل: <b id="workerLabel">-</b> | الطلبية: <b id="codeLabel">-</b></span>
       <div>
-        <div style="font-size:0.8rem; color:var(--muted);">كود التحضير النشط حالياً:</div>
-        <div style="font-size:0.75rem; color:var(--muted);">العمال شغالين بهذا الكود على الموبايل</div>
-      </div>
-      <div style="display:flex; align-items:center; gap:16px;">
-        <span class="code-num" id="displayOrderCode">----</span>
-        <button class="file-btn btn-danger" onclick="closeOrder()">خروج من الطلبية 🚪</button>
+        <button id="logoutBtn" onclick="logout()">🚪 خروج</button>
       </div>
     </div>
-
-    <!-- كارت العمال الشغالين حالياً -->
-    <div class="workers-card">
-      <span class="workers-title">👷 العمال الشغالين حالياً:</span>
-      <div id="activeWorkersList" style="display:flex; gap:8px; flex-wrap:wrap;">
-        <span style="color:var(--muted); font-size:0.8rem;">جاري التحقق...</span>
-      </div>
+    <div class="scan-box">
+      <label>اضرب الباركود دلوقتي</label>
+      <form id="scanForm">
+        <input type="text" id="barcodeInput" inputmode="none" placeholder="امسح الباركود واضغط Enter" autocomplete="off" />
+      </form>
     </div>
 
-    <!-- شبكة مؤشرات الإنجاز -->
-    <div class="progress-grid">
-      <div class="prog-card">
-        <div class="prog-title">
-          <span>📦 نسبة إنجاز الأصناف (المنتجات):</span>
-          <b id="itemsProgText">0% (0 / 0 صنف)</b>
-        </div>
-        <div class="prog-bar-bg">
-          <div class="prog-bar-fill" id="itemsBarFill"></div>
-        </div>
-      </div>
+    <div id="workerWarning" class="worker-warning"></div>
 
-      <div class="prog-card">
-        <div class="prog-title">
-          <span>🧩 نسبة إنجاز القطع الكلية:</span>
-          <b id="qtyProgText">0% (0 / 0 قطعة)</b>
-        </div>
-        <div class="prog-bar-bg">
-          <div class="prog-bar-fill" id="qtyBarFill"></div>
-        </div>
-      </div>
+    <div id="placeholder" class="placeholder">استنى مسح أول باركود عشان تطلعلك الكميات هنا</div>
+    <div id="resultBox" class="result" style="display:none;"></div>
+    <div id="notFoundBox" class="not-found" style="display:none;"></div>
+
+    <div class="history" id="historyBox" style="display:none;">
+      <h3>آخر عمليات المسح</h3>
+      <div id="historyList"></div>
     </div>
-
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px;">
-      <h3 style="margin:0;">الأصناف قيد التحضير حالياً ⏱️</h3>
-      <button class="file-btn" onclick="exportToExcel()" style="background:#1d6f42;">تصدير النتيجة إلى الإكسيل 📊</button>
-    </div>
-
-    <table class="items-table">
-      <thead>
-        <tr>
-          <th>الباركود</th>
-          <th>اسم المنتج</th>
-          <th>تفاصيل الفروع (المطلوب / المحضر / المحضر)</th>
-          <th>الحالة</th>
-        </tr>
-      </thead>
-      <tbody id="itemsTableBody">
-      </tbody>
-    </table>
   </div>
 </div>
 
 <script>
 var DB_URL = "https://branchprep-default-rtdb.firebaseio.com";
-var activeOrderCode = localStorage.getItem('bp_admin_code') || "";
-var activeOrderData = null;
+var workerName = "";
+var orderCode = "";
+var itemsData = {};
+var branchNames = [];
+var historyListArr = [];
+var currentCode = null;
+var activeBranch = null;
 var pollInterval = null;
 
+try {
+  workerName = localStorage.getItem('bp_worker') || "";
+  orderCode = localStorage.getItem('bp_code') || "";
+} catch(e){}
+
+var barcodeInput = document.getElementById('barcodeInput');
+barcodeInput.addEventListener('click', function() {
+  this.removeAttribute('inputmode');
+});
+
 window.onload = function() {
-  if (activeOrderCode) {
-    showActiveOrderScreen();
-    startAdminLiveSync();
-  }
+  try {
+    if (workerName && orderCode) {
+      document.getElementById('workerNameInput').value = workerName;
+      document.getElementById('orderCodeInput').value = orderCode;
+      openScanScreen();
+      fetchLatestData();
+    }
+  } catch(e) {}
 };
 
-function handleFileUpload(e) {
-  var file = e.target.files[0];
-  if (!file) return;
+function loginToOrder() {
+  try {
+    var wName = document.getElementById('workerNameInput').value.trim();
+    var oCode = document.getElementById('orderCodeInput').value.trim();
+    var errDiv = document.getElementById('loginError');
 
-  var reader = new FileReader();
-  reader.onload = function(evt) {
-    var data = new Uint8Array(evt.target.result);
-    var workbook = XLSX.read(data, { type: 'array' });
-    var firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-    var jsonData = XLSX.utils.sheet_to_json(firstSheet);
-
-    if (!jsonData || jsonData.length === 0) {
-      alert("ملف الإكسيل فارغ أو غير صالح!");
+    if (!wName || !oCode) {
+      errDiv.style.display = 'block';
+      errDiv.textContent = 'برجاء كتابة الاسم وكود الطلبية أولاً';
       return;
     }
 
-    processAndUploadExcel(jsonData);
-  };
-  reader.readAsArrayBuffer(file);
-}
-  function processAndUploadExcel(rows) {
-  var newCode = Math.floor(1000 + Math.random() * 9000).toString();
-  var items = {};
+    errDiv.style.display = 'none';
+    workerName = wName;
+    orderCode = oCode;
 
-  rows.forEach(function(row) {
-    var barcode = String(row['الباركود'] || row['باركود'] || row['Barcode'] || '').trim();
-    var productName = String(row['اسم المنتج'] || row['المنتج'] || row['Product'] || '').trim();
+    try {
+      localStorage.setItem('bp_worker', workerName);
+      localStorage.setItem('bp_code', orderCode);
+    } catch(e){}
 
-    if (!barcode) return;
-
-    if (!items[barcode]) {
-      items[barcode] = { product: productName, branches: {} };
-    }
-
-    Object.keys(row).forEach(function(key) {
-      if (key !== 'الباركود' && key !== 'باركود' && key !== 'Barcode' && key !== 'اسم المنتج' && key !== 'المنتج' && key !== 'Product') {
-        var targetQty = Number(row[key]) || 0;
-        items[barcode].branches[key] = {
-          target: targetQty,
-          actual: "",
-          worker: ""
-        };
-      }
-    });
-  });
-
-  document.getElementById('statusTag').textContent = 'جاري رفع الملف...';
-
-  fetch(DB_URL + '/orders/' + newCode + '.json', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ items: items, createdAt: Date.now() })
-  })
-  .then(function() {
-    activeOrderCode = newCode;
-    localStorage.setItem('bp_admin_code', activeOrderCode);
-    showActiveOrderScreen();
-    startAdminLiveSync();
-  })
-  .catch(function(err) {
-    alert("حدث خطأ أثناء الرفع للسيرفر، تأكد من الاتصال!");
-  });
-}
-
-function showActiveOrderScreen() {
-  document.getElementById('uploadSection').style.display = 'none';
-  document.getElementById('activeOrderSection').style.display = 'block';
-  document.getElementById('displayOrderCode').textContent = activeOrderCode;
-}
-
-function startAdminLiveSync() {
-  fetchAdminData();
-  if (!pollInterval) {
-    pollInterval = setInterval(fetchAdminData, 2500);
+    openScanScreen();
+    fetchLatestData();
+  } catch(e) {
+    alert("حدث خطأ في التسجيل، جرب مرة أخرى.");
   }
 }
 
-function fetchAdminData() {
-  if (!activeOrderCode) return;
-  fetch(DB_URL + '/orders/' + activeOrderCode + '.json')
+function openScanScreen() {
+  document.getElementById('workerLabel').textContent = workerName;
+  document.getElementById('codeLabel').textContent = orderCode;
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('scanScreen').style.display = 'block';
+  document.getElementById('statusTag').textContent = 'جاهز للمسح';
+  safeFocus();
+
+  if (!pollInterval) {
+    pollInterval = setInterval(function() {
+      fetchLatestData();
+      if(currentCode) keepLockAlive(currentCode);
+    }, 2000);
+  }
+}
+
+function fetchLatestData() {
+  if (!orderCode) return;
+  fetch(DB_URL + '/orders/' + orderCode + '.json')
     .then(function(res) { return res.json(); })
     .then(function(data) {
       if (data && data.items) {
-        activeOrderData = data.items;
-        renderAdminDashboard();
-      } else {
-        alert("الطلبية غير موجودة أو تم إنهاؤها!");
-        closeOrder(true);
-      }
-    });
-}
-
-function renderAdminDashboard() {
-  if (!activeOrderData) return;
-
-  var totalItemsCount = 0;    
-  var completedItemsCount = 0; 
-
-  var totalQty = 0;          
-  var actualQty = 0;         
-
-  var activeWorkersMap = {}; 
-  var tbodyHtml = '';
-  var activeRowsCount = 0;
-
-  Object.keys(activeOrderData).forEach(function(code) {
-    totalItemsCount++;
-    var row = activeOrderData[code];
-    var itemTargetSum = 0;
-    var itemActualSum = 0;
-    var hasAnyActual = false;
-    var chipsHtml = '';
-
-    // إظهار العامل المتواجد حياً على الصفحة حالياً وقت الفتح
-    if (row.lock && row.lock.worker) {
-      if (Date.now() - row.lock.timestamp < 8000) {
-        activeWorkersMap[row.lock.worker] = true;
-      }
-    }
-
-    if (row.branches) {
-      Object.keys(row.branches).forEach(function(bName) {
-        var b = row.branches[bName];
-        var t = Number(b.target) || 0;
-        var a = Number(b.actual) || 0;
-
-        itemTargetSum += t;
-        itemActualSum += a;
-
-        if (b.actual !== "") {
-          hasAnyActual = true;
-        }
-
-        if (t > 0) {
-          var isDone = b.actual !== '' && a >= t;
-          var wText = b.worker ? ' (' + escapeHtml(b.worker) + ')' : '';
-          chipsHtml += '<span class="branch-chip ' + (isDone ? 'done' : '') + '">' + escapeHtml(bName) + ': ' + a + '/' + t + wText + '</span>';
-        }
-      });
-    }
-
-    totalQty += itemTargetSum;
-    actualQty += itemActualSum;
-
-    var isItemDone = itemTargetSum > 0 && itemActualSum >= itemTargetSum;
-    if (isItemDone) {
-      completedItemsCount++;
-    }
-
-    if (hasAnyActual || (row.lock && Date.now() - row.lock.timestamp < 8000)) {
-      activeRowsCount++;
-      var statusBadge = isItemDone ? '<span class="badge badge-done">مكتمل</span>' : '<span class="badge badge-prog">قيد التحضير</span>';
-
-      tbodyHtml += '<tr>' +
-        '<td style="direction:ltr; font-weight:bold;">' + escapeHtml(code) + '</td>' +
-        '<td>' + escapeHtml(row.product || '-') + '</td>' +
-        '<td>' + chipsHtml + '</td>' +
-        '<td>' + statusBadge + '</td>' +
-        '</tr>';
-    }
-  });
-
-  // عرض العمال المتواجدين حالياً بالتحضير
-  var workersArr = Object.keys(activeWorkersMap);
-  var workersListDiv = document.getElementById('activeWorkersList');
-  if (workersArr.length > 0) {
-    workersListDiv.innerHTML = workersArr.map(function(wName) {
-      return '<span class="worker-badge">' + escapeHtml(wName) + '</span>';
-    }).join('');
-  } else {
-    workersListDiv.innerHTML = '<span style="color:var(--muted); font-size:0.8rem;">لا يوجد عمال متواجدين حالياً</span>';
-  }
-
-  // عرض الجدول للأصناف النشطة فقط
-  if (activeRowsCount > 0) {
-    document.getElementById('itemsTableBody').innerHTML = tbodyHtml;
-  } else {
-    document.getElementById('itemsTableBody').innerHTML = '<tr><td colspan="4" class="empty-msg">لم يبدأ أي عامل بالتحضير بعد.. استنى أول مسح باركود من الموبايل!</td></tr>';
-  }
-
-  // نسبة الأصناف والقطع الكلية
-  var itemsPercent = totalItemsCount > 0 ? Math.round((completedItemsCount / totalItemsCount) * 100) : 0;
-  document.getElementById('itemsProgText').textContent = itemsPercent + '% (' + completedItemsCount + ' / ' + totalItemsCount + ' صنف)';
-  document.getElementById('itemsBarFill').style.width = itemsPercent + '%';
-
-  var qtyPercent = totalQty > 0 ? Math.round((actualQty / totalQty) * 100) : 0;
-  document.getElementById('qtyProgText').textContent = qtyPercent + '% (' + actualQty + ' / ' + totalQty + ' قطعة)';
-  document.getElementById('qtyBarFill').style.width = qtyPercent + '%';
-}
-
-function closeOrder(skipConfirm) {
-  if (!skipConfirm) {
-    if (!confirm("هل أنت تأكد من خروج وإنهاء هذه الطلبية؟")) return;
-  }
-  if (pollInterval) clearInterval(pollInterval);
-  localStorage.removeItem('bp_admin_code');
-  activeOrderCode = "";
-  activeOrderData = null;
-  document.getElementById('activeOrderSection').style.display = 'none';
-  document.getElementById('uploadSection').style.display = 'block';
-  document.getElementById('statusTag').textContent = 'جاهز';
-}
-
-// تصدير الإكسيل المفصل القديم (كل فرع تحت بعضه)
-function exportToExcel() {
-  if (!activeOrderData) return;
-  var exportRows = [];
-
-  Object.keys(activeOrderData).forEach(function(code) {
-    var row = activeOrderData[code];
-    var productName = row.product || '';
-
-    if (row.branches) {
-      Object.keys(row.branches).forEach(function(bName) {
-        var b = row.branches[bName];
-        exportRows.push({
-          'الباركود': code,
-          'اسم المنتج': productName,
-          'الفرع': bName,
-          'الكمية المطلوبة': b.target || 0,
-          'الكمية المحضرة': b.actual === "" ? 0 : Number(b.actual) || 0,
-          'اسم المحضر': b.worker || ''
+        itemsData = data.items;
+        var branchesSet = {};
+        Object.keys(itemsData).forEach(function(k) {
+          var item = itemsData[k];
+          if (item && item.branches) {
+            Object.keys(item.branches).forEach(function(b) { branchesSet[b] = true; });
+          }
         });
-      });
+        branchNames = Object.keys(branchesSet);
+        document.getElementById('statusTag').textContent = 'جاهز للمسح';
+        
+        if (currentCode && itemsData[currentCode]) {
+          renderResult(currentCode, itemsData[currentCode], activeBranch);
+        }
+      }
+    })
+    .catch(function(err) {});
+}
+
+function logout() {
+  var confirmExit = confirm("هل أنت تأكد من تسجيل الخروج؟");
+  if (confirmExit) {
+    if (pollInterval) clearInterval(pollInterval);
+    try {
+      localStorage.removeItem('bp_worker');
+      localStorage.removeItem('bp_code');
+    } catch(e){}
+    location.reload();
+  }
+}
+
+function safeFocus() {
+  setTimeout(function() {
+    barcodeInput.setAttribute('inputmode', 'none');
+    try { barcodeInput.focus({ preventScroll: true }); } catch (e) { barcodeInput.focus(); }
+  }, 100);
+}
+
+document.getElementById('scanForm').addEventListener('submit', function(e) {
+  e.preventDefault();
+  var code = barcodeInput.value.trim();
+  if (!code) return;
+
+  if (code === currentCode && itemsData[code]) {
+    // التأكد من عدم وجود قفل من عامل آخر
+    var lockWorker = getActiveLockWorker(itemsData[code]);
+    if (!lockWorker && activeBranch) {
+      var currentVal = Number(itemsData[code].branches && itemsData[code].branches[activeBranch] ? itemsData[code].branches[activeBranch].actual : 0) || 0;
+      updateBranchActual(code, activeBranch, currentVal + 1);
     }
+    barcodeInput.value = '';
+    safeFocus();
+    return;
+  }
+
+  document.getElementById('placeholder').style.display = 'none';
+
+  if (itemsData[code]) {
+    document.getElementById('notFoundBox').style.display = 'none';
+    document.getElementById('resultBox').style.display = 'block';
+    activeBranch = null;
+    
+    tryAcquireLock(code);
+    renderResult(code, itemsData[code]);
+
+    historyListArr.unshift({ name: itemsData[code].product || code, code: code });
+    historyListArr = historyListArr.slice(0, 8);
+    renderHistory();
+  } else {
+    currentCode = null;
+    activeBranch = null;
+    document.getElementById('resultBox').style.display = 'none';
+    document.getElementById('notFoundBox').style.display = 'block';
+    document.getElementById('workerWarning').style.display = 'none';
+    document.getElementById('notFoundBox').innerHTML = 'الباركود ده مش موجود في الطلبية <span class="code">' + escapeHtml(code) + '</span>';
+  }
+
+  barcodeInput.value = '';
+  safeFocus();
+});
+
+// محاولة حجز القفل الثابت للعامل الأول
+function tryAcquireLock(code) {
+  if (!workerName || !code) return;
+  var item = itemsData[code];
+  
+  var activeLock = getActiveLockWorker(item);
+  // لو مفيش حد حاطط قفل حالي، يوضع القفل باسم العامل الحالي
+  if (!activeLock) {
+    fetch(DB_URL + '/orders/' + orderCode + '/items/' + code + '/lock.json', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ worker: workerName, timestamp: Date.now() })
+    }).catch(function(e){});
+  }
+}
+
+// تجديد وقت القفل لإبقائه نشطاً للعامل الأول
+function keepLockAlive(code) {
+  if (!workerName || !code) return;
+  var item = itemsData[code];
+  if (item && item.lock && item.lock.worker === workerName) {
+    fetch(DB_URL + '/orders/' + orderCode + '/items/' + code + '/lock/timestamp.json', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Date.now())
+    }).catch(function(e){});
+  }
+}
+
+// إرجاع اسم العامل الحاجز للمنتج إن وجد وكان نشطاً خلال آخر 7 ثوانٍ
+function getActiveLockWorker(row) {
+  if (row && row.lock && row.lock.worker && row.lock.worker !== workerName) {
+    if (Date.now() - row.lock.timestamp < 7000) {
+      return row.lock.worker;
+    }
+  }
+  return null;
+}
+
+function renderResult(code, row, focusBranch) {
+  currentCode = code;
+  var total = 0;
+  var doneCount = 0;
+  var neededCount = 0;
+  var rowsHtml = '';
+
+  if (focusBranch !== undefined) activeBranch = focusBranch;
+
+  // فحص هل المنتج محجوز بقفل من عامل آخر
+  var lockWorker = getActiveLockWorker(row);
+  var isReadOnly = !!lockWorker;
+
+  var warnBox = document.getElementById('workerWarning');
+  if (isReadOnly) {
+    warnBox.style.display = 'block';
+    warnBox.innerHTML = '🔒 <b>تنبيه:</b> العامل (<b>' + escapeHtml(lockWorker) + '</b>) متواجد شغال على هذا المنتج حالياً!<br><small style="font-weight:normal;">التعديل مقفول عليك نهائياً ومتاح فقط للعامل (<b>' + escapeHtml(lockWorker) + '</b>).</small>';
+  } else {
+    warnBox.style.display = 'none';
+  }
+
+  branchNames.forEach(function(bName) {
+    var bData = (row.branches && row.branches[bName]) ? row.branches[bName] : { target:0, actual:"", worker:"" };
+    var qtyNum = Number(bData.target) || 0;
+    var actualVal = bData.actual;
+    var actualNum = Number(actualVal) || 0;
+    
+    total += qtyNum;
+    var isZero = qtyNum === 0;
+
+    var actionCell;
+    var doneClass = '';
+    var selectedClass = '';
+
+    if (isZero) {
+      actionCell = '<td class="zero-note">لا يحتاج</td><td></td>';
+    } else {
+      neededCount++;
+      var isComplete = actualVal !== '' && actualNum >= qtyNum;
+      if (isComplete) { doneCount++; doneClass = ' branch-done'; }
+      if (bName === activeBranch) selectedClass = ' selected';
+
+      var disabledAttr = isReadOnly ? 'disabled="disabled"' : '';
+
+      actionCell =
+        '<td class="actual"><input type="number" class="actual-input" data-branch="' + escapeHtml(bName) + '" placeholder="0" value="' + escapeHtml(String(actualVal)) + '" ' + disabledAttr + ' onclick="event.stopPropagation();" /></td>' +
+        '<td class="check"><button type="button" class="fill-btn" data-branch="' + escapeHtml(bName) + '" ' + disabledAttr + '>⚡</button></td>';
+    }
+
+    var zeroClass = isZero ? ' zero' : '';
+    var workerText = bData.worker ? ' <small style="color:#217346; font-weight:bold;">(' + escapeHtml(bData.worker) + ')</small>' : '';
+    
+    rowsHtml += '<tr class="' + (zeroClass + doneClass + selectedClass).trim() + '" data-branch="' + escapeHtml(bName) + '">' +
+      '<td>' + escapeHtml(bName) + workerText + '</td>' +
+      '<td class="qty">' + qtyNum + '</td>' +
+      actionCell +
+      '</tr>';
   });
 
-  var ws = XLSX.utils.json_to_sheet(exportRows);
-  var wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "تقرير التحضير المفصل");
-  XLSX.writeFile(wb, "تقرير_التحضير_طلبية_" + activeOrderCode + ".xlsx");
+  rowsHtml += '<tr class="total-row"><td>الإجمالي</td><td class="qty">' + total + '</td><td></td><td></td></tr>';
+
+  document.getElementById('resultBox').innerHTML =
+    '<div class="pname">' + escapeHtml(row.product || code) + '</div>' +
+    (row.product ? '<div class="pbarcode">' + escapeHtml(code) + '</div>' : '') +
+    '<div class="progress-note">اتحضر ' + doneCount + ' من ' + neededCount + ' فرع محتاج تحضير — دوس على الفرع واضغط الباركود لتسجيله، أو (⚡) للملء.</div>' +
+    '<table class="branch-table"><tbody>' + rowsHtml + '</tbody></table>';
+}
+
+function updateBranchActual(code, branch, val) {
+  if (!code || !branch) return;
+  if (!itemsData[code]) return;
+  
+  // حماية صارمة: منع حفظ أي تعديل إطلاقاً إن كان هناك قفل للغير
+  if (getActiveLockWorker(itemsData[code])) return;
+
+  if (!itemsData[code].branches) itemsData[code].branches = {};
+  if (!itemsData[code].branches[branch]) {
+    itemsData[code].branches[branch] = { target:0, actual:"", worker:"" };
+  }
+  
+  itemsData[code].branches[branch].actual = val;
+  itemsData[code].branches[branch].worker = workerName;
+
+  renderResult(code, itemsData[code], branch);
+
+  fetch(DB_URL + '/orders/' + orderCode + '/items/' + code + '/branches/' + branch + '.json', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ actual: val, worker: workerName })
+  }).catch(function(e){});
+}
+
+var resBox = document.getElementById('resultBox');
+resBox.addEventListener('click', function(e) {
+  if (itemsData[currentCode] && getActiveLockWorker(itemsData[currentCode])) return;
+
+  var btn = e.target.closest('.fill-btn');
+  if (btn && currentCode) {
+    e.stopPropagation();
+    var branch = btn.getAttribute('data-branch');
+    if (branch) {
+      var targetQty = (itemsData[currentCode] && itemsData[currentCode].branches && itemsData[currentCode].branches[branch]) ? itemsData[currentCode].branches[branch].target : 0;
+      updateBranchActual(currentCode, branch, targetQty);
+      safeFocus();
+    }
+    return;
+  }
+
+  var tr = e.target.closest('tr[data-branch]');
+  if (tr && currentCode) {
+    if (tr.classList.contains('zero') || e.target.classList.contains('actual-input')) return;
+    var bName = tr.getAttribute('data-branch');
+    if (bName) {
+      activeBranch = bName;
+      renderResult(currentCode, itemsData[currentCode], bName);
+      safeFocus();
+    }
+  }
+});
+
+resBox.addEventListener('change', function(e) {
+  if (itemsData[currentCode] && getActiveLockWorker(itemsData[currentCode])) return;
+  
+  var input = e.target.closest('.actual-input');
+  if (input && currentCode) {
+    var branch = input.getAttribute('data-branch');
+    if (branch) {
+      updateBranchActual(currentCode, branch, input.value);
+    }
+  }
+});
+
+function renderHistory() {
+  var hBox = document.getElementById('historyBox');
+  var hList = document.getElementById('historyList');
+  if (historyListArr.length === 0) {
+    hBox.style.display = 'none';
+    return;
+  }
+  hBox.style.display = 'block';
+  hList.innerHTML = historyListArr.map(function(h) {
+    return '<div class="history-item"><span class="name">' + escapeHtml(h.name) + '</span><span class="code">' + escapeHtml(h.code) + '</span></div>';
+  }).join('');
 }
 
 function escapeHtml(str) {
