@@ -3,99 +3,141 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BranchPrep Cloud - لوحة إدارة المستودع</title>
+<title>BranchPrep - لوحة التحكم المركزية</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
-  :root { --primary: #1f6f5c; --bg: #f4f6f8; --card: #ffffff; --text: #12181f; --success: #28a745; --muted: #6b6459; --line: #e2e8f0; }
-  body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; }
-  .container { max-width: 1100px; margin: 0 auto; }
-  .card { background: var(--card); padding: 25px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); margin-bottom: 20px; }
-  h1 { margin-top: 0; color: var(--primary); text-align: center; }
-  .drop-zone { border: 2px dashed #b2c8c2; border-radius: 12px; padding: 30px; text-align: center; background: #fafcfb; cursor: pointer; transition: 0.2s; }
-  .drop-zone:hover { border-color: var(--primary); background: #f0f7f5; }
+  :root {
+    --ink:#12181f;
+    --paper:#f5f3ee;
+    --panel:#ffffff;
+    --line:#dcd6c9;
+    --accent:#1f6f5c;
+    --accent-dark:#154d40;
+    --warn:#b3452b;
+    --muted:#6b6459;
+  }
+  * { box-sizing:border-box; }
+  body {
+    margin:0; padding:0;
+    background:var(--paper); color:var(--ink);
+    font-family:'Tahoma','Segoe UI',sans-serif;
+    min-height:100vh;
+  }
+  .wrap { max-width:1100px; margin:0 auto; padding:20px 16px 60px; }
+  header {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 4px 20px; border-bottom:2px solid var(--ink); margin-bottom:22px;
+  }
+  header h1 { font-size:1.3rem; margin:0; font-weight:800; }
   
-  .reopen-box { display: flex; gap: 10px; justify-content: center; align-items: center; margin-top: 20px; padding-top: 20px; border-top: 1px dashed var(--line); }
-  .reopen-box input { padding: 10px 14px; border-radius: 8px; border: 1px solid var(--line); font-size: 1rem; width: 180px; text-align: center; font-weight: bold; }
-  .btn-secondary { background: #4a5568; color: white; border: none; padding: 10px 18px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.95rem; }
-  .btn-secondary:hover { background: #2d3748; }
+  .card {
+    background:var(--panel); border:1px solid var(--line);
+    border-radius:14px; padding:24px; margin-bottom:20px;
+  }
+  
+  .code-display {
+    display:flex; align-items:center; justify-content:space-between;
+    background:#eef5f2; border:2px solid var(--accent); border-radius:12px; padding:16px 20px;
+    margin-bottom:20px;
+  }
+  .code-num { font-size:2.4rem; font-weight:900; color:var(--accent-dark); letter-spacing:2px; }
 
-  .code-banner { background: #eef7f4; border: 2px solid var(--primary); padding: 15px 25px; border-radius: 12px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
-  .code-num { font-size: 2.8rem; font-weight: 800; color: var(--primary); letter-spacing: 3px; }
+  /* شبكة مؤشرات الإنجاز (الأصناف والقطعة) */
+  .progress-grid {
+    display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px;
+  }
+  @media(max-width:768px){ .progress-grid { grid-template-columns:1fr; } }
+
+  .prog-card {
+    background:#faf8f5; border:1px solid var(--line); border-radius:12px; padding:16px;
+  }
+  .prog-title { font-size:0.85rem; color:var(--muted); font-weight:bold; margin-bottom:6px; display:flex; justify-content:space-between; }
+  .prog-bar-bg { background:#e2ded8; height:12px; border-radius:6px; overflow:hidden; }
+  .prog-bar-fill { background:var(--accent); height:100%; width:0%; transition:width 0.4s ease; }
+
+  .file-btn {
+    display:inline-block; background:var(--accent); color:#fff;
+    padding:12px 24px; border-radius:10px; font-weight:700;
+    font-size:.95rem; cursor:pointer; border:none;
+  }
+  .file-btn:hover { background:var(--accent-dark); }
+  .btn-danger { background:var(--warn); }
+  .btn-danger:hover { background:#8e331f; }
+
+  .items-table { width:100%; border-collapse:collapse; margin-top:14px; }
+  .items-table th, .items-table td { padding:12px 8px; border-bottom:1px solid var(--line); text-align:right; font-size:0.9rem; }
+  .items-table th { background:#f0ece1; font-weight:bold; }
   
-  .progress-bar-bg { background: var(--line); height: 20px; border-radius: 10px; overflow: hidden; margin-top: 10px; }
-  .progress-bar-fill { background: var(--primary); height: 100%; width: 0%; transition: width 0.4s ease; }
-  
-  .btn-export { background: #217346; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 1rem; display: inline-flex; align-items: center; gap: 8px; transition: 0.2s; }
-  .btn-export:hover { background: #1e6b41; }
-  .btn-reset { background: #dc3545; color: white; border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
-  
-  table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-  th, td { padding: 12px 15px; text-align: right; border-bottom: 1px solid var(--line); }
-  th { background: #f8fafc; color: var(--muted); font-size: 0.9rem; }
-  
-  .badge { padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; font-weight: bold; display: inline-block; }
-  .badge-done { background: #d4edda; color: #155724; }
-  .badge-pending { background: #fff3cd; color: #856404; }
-  .hidden { display: none !important; }
-  .empty-state { text-align: center; padding: 40px; color: #888; font-size: 1.1rem; }
+  .badge { display:inline-block; padding:3px 8px; border-radius:6px; font-size:0.75rem; font-weight:bold; }
+  .badge-done { background:#d1e7dd; color:#0f5132; }
+  .badge-prog { background:#fff3cd; color:#664d03; }
+
+  .branch-chip {
+    display:inline-block; background:#f0f0f0; border:1px solid #ccc;
+    padding:3px 7px; border-radius:6px; font-size:0.75rem; margin:2px;
+  }
+  .branch-chip.done { background:#e2f0d9; border-color:#b5d5a7; color:#276a12; }
 </style>
 </head>
 <body>
+<div class="wrap">
+  <header>
+    <h1>BranchPrep 🖥️ <span style="font-size:0.8rem; color:var(--muted);">البرنامج المركزي</span></h1>
+    <span id="statusTag" style="font-size:0.85rem; font-weight:bold; color:var(--accent);">جاهز</span>
+  </header>
 
-<div class="container">
-  <!-- شاشة رفع ملف جديد أو العودة لطلبية قديمة -->
-  <div class="card" id="uploadCard">
-    <h1>BranchPrep Cloud 🖥️</h1>
-    <p style="text-align: center; color: var(--muted);">رفع طلبية جديدة أو فتح متابعة طلبية سابقة</p>
-    
-    <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
-      <div style="font-size: 2.5rem; margin-bottom: 8px;">📁</div>
-      <h3 style="margin:5px 0;">اضغط هنا لاختيار ملف الإكسيل أو اسحبه إلى هنا</h3>
-      <p style="font-size: 0.85rem; color: #888; margin:0;">يدعم ملفات .xlsx و .xls</p>
-      <input type="file" id="fileInput" accept=".xlsx, .xls" style="display:none;" onchange="handleFile(this.files[0])">
-    </div>
-    
-    <!-- قسم فتح طلبية سابقة برقم الكود -->
-    <div class="reopen-box">
-      <span style="font-size:0.9rem; font-weight:bold; color:var(--muted);">أو فتح طلبية سابقة بالكود:</span>
-      <input type="number" id="oldCodeInput" placeholder="مثال: 5397" />
-      <button class="btn-secondary" onclick="openExistingOrder()">فتح الطلبية 📂</button>
-    </div>
-
-    <div id="status" style="text-align:center; font-weight:bold; margin-top:10px; color:var(--primary);"></div>
+  <!-- شاشة رفع ملف شيت الإكسيل -->
+  <div id="uploadSection" class="card">
+    <h2 style="margin-top:0;">رفع طلبيات الفروع الجديدة 📊</h2>
+    <p style="color:var(--muted); font-size:0.9rem;">قم باختيار ملف إكسيل (.xlsx) الذي يحتوي على توزيع الفروع لتوليد كود التحضير للموبايلات.</p>
+    <input type="file" id="excelFile" accept=".xlsx, .xls" style="display:none;" onchange="handleFileUpload(event)">
+    <button class="file-btn" onclick="document.getElementById('excelFile').click()">اختيار ملف الإكسيل 📁</button>
   </div>
 
-  <!-- شاشة المتابعة الحية وتصدير الملف -->
-  <div id="liveDashboard" class="card hidden">
-    <div class="code-banner">
+  <!-- شاشة المتابعة الحية عند وجود طلبية قائمة -->
+  <div id="activeOrderSection" class="card" style="display:none;">
+    <div class="code-display">
       <div>
-        <div style="font-weight:bold; color:var(--muted);">كود التحضير النشط حالياً:</div>
-        <div style="font-size:0.85rem; color:#666;">العمال شغالين بهذا الكود على الموبايل</div>
+        <div style="font-size:0.8rem; color:var(--muted);">كود التحضير النشط حالياً:</div>
+        <div style="font-size:0.75rem; color:var(--muted);">العمال شغالين بهذا الكود على الموبايل</div>
       </div>
-      <div style="display:flex; align-items:center; gap:15px;">
-        <div class="code-num" id="orderCodeDisplay">0000</div>
-        <button class="btn-reset" onclick="resetCurrentOrder()">خروج من الطلبية 🔄</button>
+      <div style="display:flex; align-items:center; gap:16px;">
+        <span class="code-num" id="displayOrderCode">----</span>
+        <button class="file-btn btn-danger" onclick="closeOrder()">خروج من الطلبية 🚪</button>
       </div>
     </div>
 
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-      <div style="flex-grow:1; margin-left:20px;">
-        <div style="display:flex; justify-content:space-between; font-weight:bold;">
-          <span>نسبة إنجاز الطلبية الكلية:</span>
-          <span id="progressText">0% (0 / 0 قطع)</span>
+    <!-- شبكة مؤشرات الإنجاز المزدوجة (الأصناف + القطع) -->
+    <div class="progress-grid">
+      <!-- 1. مؤشر نسبة الأصناف / المنتجات -->
+      <div class="prog-card">
+        <div class="prog-title">
+          <span>📦 نسبة إنجاز الأصناف (المنتجات):</span>
+          <b id="itemsProgText">0% (0 / 0 صنف)</b>
         </div>
-        <div class="progress-bar-bg">
-          <div class="progress-bar-fill" id="progressBarFill"></div>
+        <div class="prog-bar-bg">
+          <div class="prog-bar-fill" id="itemsBarFill"></div>
         </div>
       </div>
-      
-      <button class="btn-export" onclick="exportToExcel()">
-        📊 تصدير النتيجة إلى الإكسيل
-      </button>
+
+      <!-- 2. مؤشر نسبة القطع / الكميات الكلية -->
+      <div class="prog-card">
+        <div class="prog-title">
+          <span>🧩 نسبة إنجاز القطع الكلية:</span>
+          <b id="qtyProgText">0% (0 / 0 قطعة)</b>
+        </div>
+        <div class="prog-bar-bg">
+          <div class="prog-bar-fill" id="qtyBarFill"></div>
+        </div>
+      </div>
     </div>
 
-    <h3 style="margin-top:25px; border-bottom:2px solid var(--primary); padding-bottom:8px;">الأصناف قيد التحضير حالياً ⏱️</h3>
-    <table>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px;">
+      <h3 style="margin:0;">الأصناف قيد التحضير حالياً ⏱️</h3>
+      <button class="file-btn" onclick="exportToExcel()" style="background:#1d6f42;">تصدير النتيجة إلى الإكسيل 📊</button>
+    </div>
+
+    <table class="items-table">
       <thead>
         <tr>
           <th>الباركود</th>
@@ -105,266 +147,230 @@
         </tr>
       </thead>
       <tbody id="itemsTableBody">
-        <!-- يتم التعبئة تلقائياً -->
+        <!-- يتم ملؤها حياً بالبيانات -->
       </tbody>
     </table>
   </div>
 </div>
 
 <script>
-const DB_URL = "https://branchprep-default-rtdb.firebaseio.com";
-let currentActiveCode = localStorage.getItem('bp_admin_code') || null;
-let currentItemsData = null;
-let eventSource = null;
+var DB_URL = "https://branchprep-default-rtdb.firebaseio.com";
+var activeOrderCode = localStorage.getItem('bp_admin_code') || "";
+var activeOrderData = null;
+var pollInterval = null;
 
-window.addEventListener('DOMContentLoaded', () => {
-  if (currentActiveCode) showDashboard(currentActiveCode);
-});
-
-function showDashboard(code) {
-  document.getElementById('uploadCard').classList.add('hidden');
-  document.getElementById('liveDashboard').classList.remove('hidden');
-  document.getElementById('orderCodeDisplay').textContent = code;
-  fetchOrderData(code);
-  startLiveMonitoring(code);
-}
-
-// دالة العودة لطلبية سابقة باستخدام الكود
-async function openExistingOrder() {
-  const code = document.getElementById('oldCodeInput').value.trim();
-  if(!code) return alert('برجاء كتابة كود الطلبية أولاً!');
-
-  document.getElementById('status').textContent = 'جاري البحث عن الطلبية...';
-  
-  try {
-    const res = await fetch(`${DB_URL}/orders/${code}.json`);
-    const data = await res.json();
-    
-    if(data && data.items) {
-      document.getElementById('status').textContent = '';
-      currentActiveCode = code;
-      localStorage.setItem('bp_admin_code', code);
-      showDashboard(code);
-    } else {
-      alert('لم يتم العثور على طلبية بهذا الكود! تأكد من الرقم.');
-      document.getElementById('status').textContent = '';
-    }
-  } catch(err) {
-    alert('تعذر الاتصال بالسيرفر!');
-    document.getElementById('status').textContent = '';
+window.onload = function() {
+  if (activeOrderCode) {
+    showActiveOrderScreen();
+    startAdminLiveSync();
   }
-}
+};
 
-async function fetchOrderData(code) {
-  try {
-    const res = await fetch(`${DB_URL}/orders/${code}.json`);
-    const data = await res.json();
-    if (data && data.items) {
-      currentItemsData = data.items;
-      updateDashboardUI(data.items);
-    }
-  } catch(err) {
-    console.error("Error fetching order:", err);
-  }
-}
-
-const dropZone = document.getElementById('dropZone');
-dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.style.borderColor = '#1f6f5c'; });
-dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor = '#b2c8c2'; });
-dropZone.addEventListener('drop', (e) => {
-  e.preventDefault();
-  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
-});
-
-function handleFile(file) {
+function handleFileUpload(e) {
+  var file = e.target.files[0];
   if (!file) return;
-  document.getElementById('status').textContent = 'جاري قراءة ملف الإكسيل...';
-  
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    try {
-      const data = new Uint8Array(e.target.result);
-      const workbook = XLSX.read(data, { type: 'array' });
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-      processExcelData(json);
-    } catch(err) {
-      alert('خطأ في قراءة الملف!');
-      document.getElementById('status').textContent = '';
+
+  var reader = new FileReader();
+  reader.onload = function(evt) {
+    var data = new Uint8Array(evt.target.result);
+    var workbook = XLSX.read(data, { type: 'array' });
+    var firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+    var jsonData = XLSX.utils.sheet_to_json(firstSheet);
+
+    if (!jsonData || jsonData.length === 0) {
+      alert("ملف الإكسيل فارغ أو غير صالح!");
+      return;
     }
+
+    processAndUploadExcel(jsonData);
   };
   reader.readAsArrayBuffer(file);
 }
 
-async function processExcelData(rows) {
-  if (rows.length < 2) return alert('الملف فارغ!');
-  document.getElementById('status').textContent = 'جاري معالجة البيانات واستخرج الفروع...';
-  
-  const header = rows[0];
-  const branchCols = [];
-  
-  for(let c = 2; c < header.length; c++) {
-    if(header[c] !== undefined && String(header[c]).trim() !== "") {
-      branchCols.push({ name: String(header[c]).trim(), index: c });
+function processAndUploadExcel(rows) {
+  // توليد كود عشوائي من 4 أرقام
+  var newCode = Math.floor(1000 + Math.random() * 9000).toString();
+  var items = {};
+
+  rows.forEach(function(row) {
+    var barcode = String(row['الباركود'] || row['باركود'] || row['Barcode'] || '').trim();
+    var productName = String(row['اسم المنتج'] || row['المنتج'] || row['Product'] || '').trim();
+
+    if (!barcode) return;
+
+    if (!items[barcode]) {
+      items[barcode] = { product: productName, branches: {} };
     }
-  }
 
-  if(branchCols.length === 0) return alert('لم يتم العثور على فروع في الملف!');
-
-  const items = {};
-  
-  for (let i = 1; i < rows.length; i++) {
-    const row = rows[i];
-    const barcode = String(row[0] || '').trim();
-    const productName = String(row[1] || '').trim();
-    if (!barcode || barcode === 'undefined') continue;
-    
-    const branches = {};
-    branchCols.forEach(col => {
-      const qty = Number(row[col.index]) || 0;
-      if (qty > 0) branches[col.name] = { target: qty, actual: "", worker: "" };
-    });
-    
-    if (Object.keys(branches).length > 0) {
-      items[barcode] = { product: productName, branches: branches };
-    }
-  }
-
-  const orderCode = Math.floor(1000 + Math.random() * 9000).toString();
-  document.getElementById('status').textContent = `تم العثور على ${branchCols.length} فروع.. جاري الرفع!`;
-  
-  try {
-    const res = await fetch(`${DB_URL}/orders/${orderCode}.json`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ createdAt: new Date().toISOString(), items: items })
-    });
-
-    if (res.ok) {
-      document.getElementById('status').textContent = '';
-      currentActiveCode = orderCode;
-      localStorage.setItem('bp_admin_code', orderCode);
-      showDashboard(orderCode);
-    }
-  } catch(err) {
-    alert('حدث خطأ في الاتصال بالسحابة!');
-  }
-}
-
-function startLiveMonitoring(orderCode) {
-  if(eventSource) eventSource.close();
-  eventSource = new EventSource(`${DB_URL}/orders/${orderCode}.json`);
-  eventSource.onmessage = function(e) {
-    const data = JSON.parse(e.data);
-    if(data && data.items) {
-      currentItemsData = data.items;
-      updateDashboardUI(data.items);
-    }
-  };
-}
-
-function updateDashboardUI(items) {
-  const tbody = document.getElementById('itemsTableBody');
-  tbody.innerHTML = '';
-
-  let totalTarget = 0;
-  let totalActual = 0;
-  let hasVisibleItems = false;
-
-  Object.keys(items).forEach(barcode => {
-    const item = items[barcode];
-    let branchDetailsHtml = '';
-    let isItemComplete = true;
-    let isBeingPrepared = false;
-
-    Object.keys(item.branches || {}).forEach(bName => {
-      const bData = item.branches[bName];
-      const target = Number(bData.target) || 0;
-      const actual = bData.actual !== "" ? Number(bData.actual) : 0;
-      const worker = bData.worker ? `(${bData.worker})` : '';
-
-      totalTarget += target;
-      totalActual += actual;
-
-      if (actual < target) isItemComplete = false;
-      if (bData.actual !== "") isBeingPrepared = true;
-
-      const isDone = actual >= target && target > 0;
-      branchDetailsHtml += `
-        <span style="display:inline-block; margin-left:10px; margin-bottom:4px; padding:3px 8px; border-radius:6px; background:${isDone ? '#e6f4ea' : '#f1f3f4'}; color:${isDone ? '#137333' : '#3c4043'}; font-size:0.85rem;">
-          <b>${bName}:</b> ${actual}/${target} <small style="color:#666;">${worker}</small>
-        </span>
-      `;
-    });
-
-    if (!isBeingPrepared) return;
-
-    hasVisibleItems = true;
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td style="font-family:monospace; font-weight:bold;">${barcode}</td>
-      <td style="font-weight:bold;">${item.product || '-'}</td>
-      <td>${branchDetailsHtml}</td>
-      <td>
-        <span class="badge ${isItemComplete ? 'badge-done' : 'badge-pending'}">
-          ${isItemComplete ? 'مكتمل' : 'قيد التحضير'}
-        </span>
-      </td>
-    `;
-    tbody.appendChild(tr);
-  });
-
-  if (!hasVisibleItems) {
-    tbody.innerHTML = '<tr><td colspan="4" class="empty-state">لم يتم بدء التحضير في أي صنف بعد.<br>بمجرد أن يقوم العامل بمسح صنف، سيظهر هنا فوراً.</td></tr>';
-  }
-
-  const percent = totalTarget > 0 ? Math.min(100, Math.round((totalActual / totalTarget) * 100)) : 0;
-  document.getElementById('progressBarFill').style.width = `${percent}%`;
-  document.getElementById('progressText').textContent = `${percent}% (${totalActual} / ${totalTarget} قطعة)`;
-}
-
-async function exportToExcel() {
-  if (!currentActiveCode) return alert('لا توجد طلبية نشطة!');
-  await fetchOrderData(currentActiveCode);
-  if (!currentItemsData) return alert('لا توجد بيانات لتصديرها!');
-
-  const excelRows = [];
-  const header = ['الباركود', 'اسم المنتج', 'الفرع', 'الكمية المطلوبة', 'الكمية المحضرة', 'المحضر'];
-  excelRows.push(header);
-
-  Object.keys(currentItemsData).forEach(barcode => {
-    const item = currentItemsData[barcode];
-    const branches = item.branches || {};
-
-    Object.keys(branches).forEach(bName => {
-      const bData = branches[bName];
-      const target = bData.target || 0;
-      const actual = bData.actual !== "" ? bData.actual : 0;
-      const worker = bData.worker || '';
-
-      excelRows.push([
-        barcode,
-        item.product || '',
-        bName,
-        target,
-        actual,
-        worker
-      ]);
+    Object.keys(row).forEach(function(key) {
+      if (key !== 'الباركود' && key !== 'باركود' && key !== 'Barcode' && key !== 'اسم المنتج' && key !== 'المنتج' && key !== 'Product') {
+        var targetQty = Number(row[key]) || 0;
+        items[barcode].branches[key] = {
+          target: targetQty,
+          actual: "",
+          worker: ""
+        };
+      }
     });
   });
 
-  const worksheet = XLSX.utils.aoa_to_sheet(excelRows);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, "تقرير التحضير");
-  
-  XLSX.writeFile(workbook, `تقرير_طلبية_${currentActiveCode}.xlsx`);
+  document.getElementById('statusTag').textContent = 'جاري رفع الملف...';
+
+  fetch(DB_URL + '/orders/' + newCode + '.json', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ items: items, createdAt: Date.now() })
+  })
+  .then(function() {
+    activeOrderCode = newCode;
+    localStorage.setItem('bp_admin_code', activeOrderCode);
+    showActiveOrderScreen();
+    startAdminLiveSync();
+  })
+  .catch(function(err) {
+    alert("حدث خطأ أثناء الرفع للسيرفر، تأكد من الاتصال!");
+  });
 }
 
-function resetCurrentOrder() {
-  if(confirm('هل تريد الخروج من شاشة متابعة هذه الطلبية؟ (يمكنك العودة إليها لاحقاً بكتابة الكود)')) {
-    localStorage.removeItem('bp_admin_code');
-    location.reload();
+function showActiveOrderScreen() {
+  document.getElementById('uploadSection').style.display = 'none';
+  document.getElementById('activeOrderSection').style.display = 'block';
+  document.getElementById('displayOrderCode').textContent = activeOrderCode;
+}
+
+function startAdminLiveSync() {
+  fetchAdminData();
+  if (!pollInterval) {
+    pollInterval = setInterval(fetchAdminData, 2500);
   }
+}
+
+function fetchAdminData() {
+  if (!activeOrderCode) return;
+  fetch(DB_URL + '/orders/' + activeOrderCode + '.json')
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      if (data && data.items) {
+        activeOrderData = data.items;
+        renderAdminDashboard();
+      } else {
+        alert("الطلبية غير موجودة أو تم إنهاؤها!");
+        closeOrder(true);
+      }
+    });
+}
+
+function renderAdminDashboard() {
+  if (!activeOrderData) return;
+
+  var totalItemsCount = 0;    // إجمالي الأصناف الكلية
+  var completedItemsCount = 0; // الأصناف المكتملة بالكامل
+
+  var totalQty = 0;          // إجمالي القطع الكلية
+  var actualQty = 0;         // القطع التي تم تحضيرها بالفعل
+
+  var tbodyHtml = '';
+
+  Object.keys(activeOrderData).forEach(function(code) {
+    totalItemsCount++;
+    var row = activeOrderData[code];
+    var itemTargetSum = 0;
+    var itemActualSum = 0;
+    var chipsHtml = '';
+
+    if (row.branches) {
+      Object.keys(row.branches).forEach(function(bName) {
+        var b = row.branches[bName];
+        var t = Number(b.target) || 0;
+        var a = Number(b.actual) || 0;
+
+        itemTargetSum += t;
+        itemActualSum += a;
+
+        if (t > 0) {
+          var isDone = b.actual !== '' && a >= t;
+          var wText = b.worker ? ' (' + escapeHtml(b.worker) + ')' : '';
+          chipsHtml += '<span class="branch-chip ' + (isDone ? 'done' : '') + '">' + escapeHtml(bName) + ': ' + a + '/' + t + wText + '</span>';
+        }
+      });
+    }
+
+    totalQty += itemTargetSum;
+    actualQty += itemActualSum;
+
+    var isItemDone = itemTargetSum > 0 && itemActualSum >= itemTargetSum;
+    if (isItemDone) {
+      completedItemsCount++;
+    }
+
+    var statusBadge = isItemDone ? '<span class="badge badge-done">مكتمل</span>' : '<span class="badge badge-prog">قيد التحضير</span>';
+
+    tbodyHtml += '<tr>' +
+      '<td style="direction:ltr; font-weight:bold;">' + escapeHtml(code) + '</td>' +
+      '<td>' + escapeHtml(row.product || '-') + '</td>' +
+      '<td>' + chipsHtml + '</td>' +
+      '<td>' + statusBadge + '</td>' +
+      '</tr>';
+  });
+
+  document.getElementById('itemsTableBody').innerHTML = tbodyHtml;
+
+  // 1. حساب ونسبة الأصناف المنتجات
+  var itemsPercent = totalItemsCount > 0 ? Math.round((completedItemsCount / totalItemsCount) * 100) : 0;
+  document.getElementById('itemsProgText').textContent = itemsPercent + '% (' + completedItemsCount + ' / ' + totalItemsCount + ' صنف)';
+  document.getElementById('itemsBarFill').style.width = itemsPercent + '%';
+
+  // 2. حساب ونسبة القطع الكلية
+  var qtyPercent = totalQty > 0 ? Math.round((actualQty / totalQty) * 100) : 0;
+  document.getElementById('qtyProgText').textContent = qtyPercent + '% (' + actualQty + ' / ' + totalQty + ' قطعة)';
+  document.getElementById('qtyBarFill').style.width = qtyPercent + '%';
+}
+
+function closeOrder(skipConfirm) {
+  if (!skipConfirm) {
+    if (!confirm("هل أنت تأكد من خروج وإنهاء هذه الطلبية؟")) return;
+  }
+  if (pollInterval) clearInterval(pollInterval);
+  localStorage.removeItem('bp_admin_code');
+  activeOrderCode = "";
+  activeOrderData = null;
+  document.getElementById('activeOrderSection').style.display = 'none';
+  document.getElementById('uploadSection').style.display = 'block';
+  document.getElementById('statusTag').textContent = 'جاهز';
+}
+
+function exportToExcel() {
+  if (!activeOrderData) return;
+  var exportRows = [];
+
+  Object.keys(activeOrderData).forEach(function(code) {
+    var row = activeOrderData[code];
+    var exportObj = {
+      'الباركود': code,
+      'اسم المنتج': row.product || ''
+    };
+
+    if (row.branches) {
+      Object.keys(row.branches).forEach(function(bName) {
+        var b = row.branches[bName];
+        exportObj[bName + ' (المطلوب)'] = b.target || 0;
+        exportObj[bName + ' (المحضر)'] = b.actual || 0;
+        exportObj[bName + ' (المحضر)'] = b.worker || '';
+      });
+    }
+    exportRows.push(exportObj);
+  });
+
+  var ws = XLSX.utils.json_to_sheet(exportRows);
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "تقرير التحضير");
+  XLSX.writeFile(wb, "تقرير_التحضير_طلبية_" + activeOrderCode + ".xlsx");
+}
+
+function escapeHtml(str) {
+  var div = document.createElement('div');
+  div.textContent = str === undefined || str === null ? '' : String(str);
+  return div.innerHTML;
 }
 </script>
 </body>
