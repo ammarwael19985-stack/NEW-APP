@@ -3,46 +3,90 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BranchPrep - لوحة إدارة الطلبيات</title>
+<title>BranchPrep Cloud - لوحة متابعة المستودع</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
-  :root { --primary: #1f6f5c; --bg: #f4f6f8; --card: #ffffff; --text: #12181f; }
+  :root { --primary: #1f6f5c; --bg: #f4f6f8; --card: #ffffff; --text: #12181f; --success: #28a745; --muted: #6b6459; --line: #e2e8f0; }
   body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; }
-  .container { max-width: 900px; margin: 0 auto; background: var(--card); padding: 30px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+  .container { max-width: 1100px; margin: 0 auto; }
+  .card { background: var(--card); padding: 25px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); margin-bottom: 20px; }
   h1 { margin-top: 0; color: var(--primary); text-align: center; }
-  .drop-zone { border: 2px dashed #b2c8c2; border-radius: 12px; padding: 40px; text-align: center; background: #fafcfb; cursor: pointer; transition: 0.2s; margin-bottom: 20px; }
+  .drop-zone { border: 2px dashed #b2c8c2; border-radius: 12px; padding: 30px; text-align: center; background: #fafcfb; cursor: pointer; transition: 0.2s; }
   .drop-zone:hover { border-color: var(--primary); background: #f0f7f5; }
-  .btn { background: var(--primary); color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 1rem; width: 100%; }
-  .btn:hover { background: #154d40; }
-  .code-box { background: #eef7f4; border: 2px solid var(--primary); padding: 20px; border-radius: 12px; text-align: center; margin-top: 20px; display: none; }
-  .code-num { font-size: 3.5rem; font-weight: 800; color: var(--primary); letter-spacing: 4px; margin: 10px 0; }
-  .status { font-weight: bold; margin-top: 10px; text-align: center; color: #666; }
+  
+  .code-banner { background: #eef7f4; border: 2px solid var(--primary); padding: 15px 25px; border-radius: 12px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+  .code-num { font-size: 2.8rem; font-weight: 800; color: var(--primary); letter-spacing: 3px; }
+  
+  .progress-bar-bg { background: var(--line); height: 20px; border-radius: 10px; overflow: hidden; margin-top: 10px; }
+  .progress-bar-fill { background: var(--primary); height: 100%; width: 0%; transition: width 0.4s ease; }
+  
+  table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+  th, td { padding: 12px 15px; text-align: right; border-bottom: 1px solid var(--line); }
+  th { background: #f8fafc; color: var(--muted); font-size: 0.9rem; }
+  
+  .badge { padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; font-weight: bold; display: inline-block; }
+  .badge-done { background: #d4edda; color: #155724; }
+  .badge-pending { background: #fff3cd; color: #856404; }
+  .hidden { display: none !important; }
 </style>
 </head>
 <body>
 
 <div class="container">
-  <h1>BranchPrep Cloud 📦</h1>
-  <p style="text-align: center; color: #666;">رفع طلبية جديدة وتوليد كود التحضير للعمال</p>
-  
-  <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
-    <div style="font-size: 3rem; margin-bottom: 10px;">📁</div>
-    <h3>اضغط هنا لاختيار ملف الإكسيل أو اسحبه إلى هنا</h3>
-    <p style="font-size: 0.85rem; color: #888;">يدعم ملفات .xlsx و .xls</p>
-    <input type="file" id="fileInput" accept=".xlsx, .xls" style="display:none;" onchange="handleFile(this.files[0])">
+  <div class="card">
+    <h1>BranchPrep Cloud 🖥️</h1>
+    <p style="text-align: center; color: var(--muted);">رفع الطلبية وتوليد كود المتابعة اللحظية للعمال</p>
+    
+    <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+      <div style="font-size: 2.5rem; margin-bottom: 8px;">📁</div>
+      <h3 style="margin:5px 0;">اضغط هنا لاختيار ملف الإكسيل أو اسحبه إلى هنا</h3>
+      <p style="font-size: 0.85rem; color: #888; margin:0;">يدعم ملفات .xlsx و .xls</p>
+      <input type="file" id="fileInput" accept=".xlsx, .xls" style="display:none;" onchange="handleFile(this.files[0])">
+    </div>
+    <div id="status" style="text-align:center; font-weight:bold; margin-top:10px; color:var(--primary);"></div>
   </div>
 
-  <div id="status" class="status"></div>
+  <!-- شاشة المتابعة الحية -->
+  <div id="liveDashboard" class="card hidden">
+    <div class="code-banner">
+      <div>
+        <div style="font-weight:bold; color:var(--muted);">كود التحضير للعمال:</div>
+        <div style="font-size:0.85rem; color:#666;">أعطِ هذا الكود للعمال على أجهزة الموبايل لبدء العمل</div>
+      </div>
+      <div class="code-num" id="orderCodeDisplay">0000</div>
+    </div>
 
-  <div class="code-box" id="codeBox">
-    <div>تم إنشاء الطلبية بنجاح! كود التحضير هو:</div>
-    <div class="code-num" id="orderCodeDisplay">0000</div>
-    <p>أعطِ هذا الكود للعمال لبدء التحضير فوراً من أجهزة الموبايل 🚀</p>
+    <div>
+      <div style="display:flex; justify-content:space-between; font-weight:bold;">
+        <span>نسبة إنجاز الطلبية الكلية:</span>
+        <span id="progressText">0% (0 / 0 قطع)</span>
+      </div>
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" id="progressBarFill"></div>
+      </div>
+    </div>
+
+    <h3 style="margin-top:25px; border-bottom:2px solid var(--primary); padding-bottom:8px;">تفاصيل حركة التحضير اللحظية 📊</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>الباركود</th>
+          <th>اسم المنتج</th>
+          <th>تفاصيل الفروع (المطلوب / المحضر / المحضر)</th>
+          <th>الحالة</th>
+        </tr>
+      </thead>
+      <tbody id="itemsTableBody">
+        <!-- يتم التعبئة تلقائياً -->
+      </tbody>
+    </table>
   </div>
 </div>
 
 <script>
 const DB_URL = "https://branchprep-default-rtdb.firebaseio.com";
+let currentActiveCode = null;
+let eventSource = null;
 
 const dropZone = document.getElementById('dropZone');
 dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.style.borderColor = '#1f6f5c'; });
@@ -61,13 +105,11 @@ function handleFile(file) {
     try {
       const data = new Uint8Array(e.target.result);
       const workbook = XLSX.read(data, { type: 'array' });
-      const sheetName = workbook.SheetNames[0];
-      const sheet = workbook.Sheets[sheetName];
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-      
       processExcelData(json);
     } catch(err) {
-      alert('خطأ في قراءة ملف الإكسيل! تأكد من تنسيق الملف.');
+      alert('خطأ في قراءة الملف!');
       document.getElementById('status').textContent = '';
     }
   };
@@ -75,66 +117,114 @@ function handleFile(file) {
 }
 
 async function processExcelData(rows) {
-  if (rows.length < 2) {
-    alert('الملف فارغ أو لا يحتوي على بيانات كافية!');
-    return;
-  }
+  if (rows.length < 2) return alert('الملف فارغ!');
 
-  document.getElementById('status').textContent = 'جاري معالجة البيانات وبناء الطلبية...';
-
+  document.getElementById('status').textContent = 'جاري رفع البيانات إلى السحابة...';
   const header = rows[0];
   const branchNames = header.slice(2);
-  
   const items = {};
   
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i];
     const barcode = String(row[0] || '').trim();
     const productName = String(row[1] || '').trim();
-    
     if (!barcode) continue;
     
     const branches = {};
     branchNames.forEach((bName, idx) => {
       const qty = Number(row[idx + 2]) || 0;
-      if (qty > 0) {
-        branches[bName] = { target: qty, actual: "", worker: "" };
-      }
+      if (qty > 0) branches[bName] = { target: qty, actual: "", worker: "" };
     });
     
     if (Object.keys(branches).length > 0) {
-      items[barcode] = {
-        product: productName,
-        branches: branches
-      };
+      items[barcode] = { product: productName, branches: branches };
     }
   }
 
   const orderCode = Math.floor(1000 + Math.random() * 9000).toString();
   
-  document.getElementById('status').textContent = 'جاري رفع الطلبية إلى السحابة...';
-
   try {
     const res = await fetch(`${DB_URL}/orders/${orderCode}.json`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        createdAt: new Date().toISOString(),
-        items: items,
-        locks: {}
-      })
+      body: JSON.stringify({ createdAt: new Date().toISOString(), items: items })
     });
 
     if (res.ok) {
       document.getElementById('status').textContent = '';
+      currentActiveCode = orderCode;
       document.getElementById('orderCodeDisplay').textContent = orderCode;
-      document.getElementById('codeBox').style.display = 'block';
-    } else {
-      alert('حدث خطأ أثناء الاتصال بالسيرفر!');
+      document.getElementById('liveDashboard').classList.remove('hidden');
+      
+      // بدء المتابعة الحية فوراً
+      startLiveMonitoring(orderCode);
     }
   } catch(err) {
-    alert('تعذر الاتصال بالسحابة! تحقق من النت.');
+    alert('حدث خطأ في الاتصال بالسحابة!');
   }
+}
+
+function startLiveMonitoring(orderCode) {
+  if(eventSource) eventSource.close();
+  
+  eventSource = new EventSource(`${DB_URL}/orders/${orderCode}.json`);
+  eventSource.onmessage = function(e) {
+    const data = JSON.parse(e.data);
+    if(data && data.items) {
+      updateDashboardUI(data.items);
+    }
+  };
+}
+
+function updateDashboardUI(items) {
+  const tbody = document.getElementById('itemsTableBody');
+  tbody.innerHTML = '';
+
+  let totalTarget = 0;
+  let totalActual = 0;
+
+  Object.keys(items).forEach(barcode => {
+    const item = items[barcode];
+    let branchDetailsHtml = '';
+    let isItemComplete = true;
+
+    Object.keys(item.branches || {}).forEach(bName => {
+      const bData = item.branches[bName];
+      const target = Number(bData.target) || 0;
+      const actual = Number(bData.actual) || 0;
+      const worker = bData.worker ? `(${bData.worker})` : '';
+
+      totalTarget += target;
+      totalActual += actual;
+
+      if (actual < target) isItemComplete = false;
+
+      const isDone = actual >= target && target > 0;
+      branchDetailsHtml += `
+        <span style="display:inline-block; margin-left:10px; margin-bottom:4px; padding:3px 8px; border-radius:6px; background:${isDone ? '#e6f4ea' : '#f1f3f4'}; color:${isDone ? '#137333' : '#3c4043'}; font-size:0.85rem;">
+          <b>${bName}:</b> ${actual}/${target} <small style="color:#666;">${worker}</small>
+        </span>
+      `;
+    });
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="font-family:monospace; font-weight:bold;">${barcode}</td>
+      <td style="font-weight:bold;">${item.product || '-'}</td>
+      <td>${branchDetailsHtml}</td>
+      <td>
+        <span class="badge ${isItemComplete ? 'badge-done' : 'badge-pending'}">
+          ${isItemComplete ? 'مكتمل' : 'قيد التحضير'}
+        </span>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  // تحديث شريط الإنجاز الكلي
+  const percent = totalTarget > 0 ? Math.min(100, Math.round((totalActual / totalTarget) * 100)) : 0;
+  document.getElementById('progressBarFill').style.width = `${percent}%`;
+  document.getElementById('progressText').textContent = `${percent}% (${totalActual} / ${totalTarget} قطعة)`;
 }
 </script>
 </body>
