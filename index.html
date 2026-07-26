@@ -59,6 +59,7 @@
     padding:6px 12px; font-size:.75rem; color:var(--warn); cursor:pointer;
   }
 
+  /* شريط التحذير الأحمـر للداخل الأخير فقط */
   .worker-warning {
     background:#fbeae5; border:2px solid var(--warn); color:var(--warn);
     padding:12px 14px; border-radius:10px; font-weight:bold; font-size:0.95rem;
@@ -238,7 +239,6 @@ function openScanScreen() {
   if (!pollInterval) {
     pollInterval = setInterval(function() {
       fetchLatestData();
-      if (currentCode) announceActiveWorker(currentCode);
     }, 2500);
   }
 }
@@ -306,6 +306,7 @@ document.getElementById('scanForm').addEventListener('submit', function(e) {
     document.getElementById('resultBox').style.display = 'block';
     activeBranch = null;
     
+    // تسجيل العامل الأخير المباشر الذي فتح المنتج حالياً
     announceActiveWorker(code);
     renderResult(code, itemsData[code]);
 
@@ -325,11 +326,10 @@ document.getElementById('scanForm').addEventListener('submit', function(e) {
   safeFocus();
 });
 
-// حفظ اسم كل عامل برقم معرف خاص باسمه دون أن يمسح الآخرين
+// إرسال تسجيل فتح المنتج باسم العامل ووقت الفتح
 function announceActiveWorker(code) {
   if (!workerName || !code) return;
-  var cleanWorkerKey = workerName.replace(/[.#$\[\]]/g, "_");
-  fetch(DB_URL + '/orders/' + orderCode + '/items/' + code + '/activeWorkers/' + cleanWorkerKey + '.json', {
+  fetch(DB_URL + '/orders/' + orderCode + '/items/' + code + '/lastViewer.json', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name: workerName, timestamp: Date.now() })
@@ -342,23 +342,18 @@ function renderResult(code, row, focusBranch) {
   var doneCount = 0;
   var neededCount = 0;
   var rowsHtml = '';
-  var otherWorkersSet = {};
+  var previousWorkers = {};
 
   if (focusBranch !== undefined) activeBranch = focusBranch;
 
-  // 1. فحص جميع العمال المتواجدين حالياً على الصفحة (خلال آخر دقيقتين)
-  if (row.activeWorkers) {
-    Object.keys(row.activeWorkers).forEach(function(key) {
-      var wObj = row.activeWorkers[key];
-      if (wObj && wObj.name && wObj.name !== workerName) {
-        if (Date.now() - wObj.timestamp < 120000) {
-          otherWorkersSet[wObj.name] = true;
-        }
-      }
-    });
+  // 1. تحديد العامل السابق الذي فتح نفس المنتج قبل العامل الحالي (إذا فتح خلال دقيقتين وكان شخص آخر)
+  if (row.lastViewer && row.lastViewer.name && row.lastViewer.name !== workerName) {
+    if (Date.now() - row.lastViewer.timestamp < 120000) {
+      previousWorkers[row.lastViewer.name] = true;
+    }
   }
 
-  // 2. فحص العمال الذين قاموا بتسجيل كميات سابقة
+  // 2. إتاحة التحضير للفروع وتحديد باقي العمال
   branchNames.forEach(function(bName) {
     var bData = (row.branches && row.branches[bName]) ? row.branches[bName] : { target:0, actual:"", worker:"" };
     var qtyNum = Number(bData.target) || 0;
@@ -368,8 +363,9 @@ function renderResult(code, row, focusBranch) {
     total += qtyNum;
     var isZero = qtyNum === 0;
 
+    // تسجيل العمال الآخرين الذين قاموا بتسجيل كميات السابقة
     if (bData.worker && bData.worker.trim() !== "" && bData.worker !== workerName) {
-      otherWorkersSet[bData.worker] = true;
+      previousWorkers[bData.worker] = true;
     }
 
     var actionCell;
@@ -399,12 +395,12 @@ function renderResult(code, row, focusBranch) {
       '</tr>';
   });
 
-  // إظهار الشريط الأحمر بثبات لكل عامل يرى باقي العمال
-  var otherWorkersArr = Object.keys(otherWorkersSet);
+  // إظهار الشريط الأحمر للجهاز الأخير فقط (الذي وجد عمالاً قبله)
+  var prevWorkersArr = Object.keys(previousWorkers);
   var warnBox = document.getElementById('workerWarning');
-  if (otherWorkersArr.length > 0) {
+  if (prevWorkersArr.length > 0) {
     warnBox.style.display = 'block';
-    warnBox.innerHTML = '⚠️ تنبيه: العامل (<b>' + escapeHtml(otherWorkersArr.join(' و ')) + '</b>) شغال أو متواجد على هذا المنتج حالياً!';
+    warnBox.innerHTML = '⚠️ تنبيه: العامل (<b>' + escapeHtml(prevWorkersArr.join(' و ')) + '</b>) كان متواجد أو شغال على هذا المنتج!';
   } else {
     warnBox.style.display = 'none';
   }
