@@ -143,8 +143,7 @@
     <div class="status-bar">
       <span>العامل: <b id="workerLabel">-</b> | الطلبية: <b id="codeLabel">-</b></span>
       <div>
-        <button onclick="fetchLatestData()" style="color:var(--accent); margin-left:8px;">تحديث 🔄</button>
-        <button id="logoutBtn" onclick="logout()">خروج 🚪</button>
+        <button id="logoutBtn" onclick="logout()">🚪 خروج</button>
       </div>
     </div>
 
@@ -268,13 +267,17 @@ function fetchLatestData() {
     .catch(function(err) {});
 }
 
+// تأكيد الخروج قبل تنفيذ الخروج
 function logout() {
-  if (pollInterval) clearInterval(pollInterval);
-  try {
-    localStorage.removeItem('bp_worker');
-    localStorage.removeItem('bp_code');
-  } catch(e){}
-  location.reload();
+  var confirmExit = confirm("هل أنت تأكد من تسجيل الخروج؟");
+  if (confirmExit) {
+    if (pollInterval) clearInterval(pollInterval);
+    try {
+      localStorage.removeItem('bp_worker');
+      localStorage.removeItem('bp_code');
+    } catch(e){}
+    location.reload();
+  }
 }
 
 function safeFocus() {
@@ -298,7 +301,6 @@ document.getElementById('scanForm').addEventListener('submit', function(e) {
     safeFocus();
     return;
   }
-
   document.getElementById('placeholder').style.display = 'none';
 
   if (itemsData[code]) {
@@ -306,7 +308,6 @@ document.getElementById('scanForm').addEventListener('submit', function(e) {
     document.getElementById('resultBox').style.display = 'block';
     activeBranch = null;
     
-    // تسجيل ملكية المنتج للأول فقط
     checkAndSetOwner(code);
     renderResult(code, itemsData[code]);
 
@@ -321,16 +322,15 @@ document.getElementById('scanForm').addEventListener('submit', function(e) {
     document.getElementById('workerWarning').style.display = 'none';
     document.getElementById('notFoundBox').innerHTML = 'الباركود ده مش موجود في الطلبية <span class="code">' + escapeHtml(code) + '</span>';
   }
+
   barcodeInput.value = '';
   safeFocus();
 });
 
-// تسجيل صاحب المنتج الأول دون حسم ملكيته للداخل الجديد
 function checkAndSetOwner(code) {
   if (!workerName || !code) return;
   
   var item = itemsData[code];
-  // لو المنتج ملوش صاحب أو صحبه عدى عليه اكتر من 5 دقائق، اجعل العامل الحالي هو الصاحب
   if (!item || !item.owner || !item.owner.name || (Date.now() - item.owner.timestamp > 300000)) {
     fetch(DB_URL + '/orders/' + orderCode + '/items/' + code + '/owner.json', {
       method: 'PUT',
@@ -350,14 +350,12 @@ function renderResult(code, row, focusBranch) {
 
   if (focusBranch !== undefined) activeBranch = focusBranch;
 
-  // 1. فحص صاحب المنتج الرئيسي (لو غير العامل الحالي وفي دقيقتين ظهر تحذير)
   if (row.owner && row.owner.name && row.owner.name !== workerName) {
     if (Date.now() - row.owner.timestamp < 300000) {
       activeOwnersSet[row.owner.name] = true;
     }
   }
 
-  // 2. فحص الفروع والعمال السابقين
   branchNames.forEach(function(bName) {
     var bData = (row.branches && row.branches[bName]) ? row.branches[bName] : { target:0, actual:"", worker:"" };
     var qtyNum = Number(bData.target) || 0;
@@ -398,7 +396,6 @@ function renderResult(code, row, focusBranch) {
       '</tr>';
   });
 
-  // إظهار الشريط للداخل الأخير فقط (الذي لا يملك المنتج)
   var ownersArr = Object.keys(activeOwnersSet);
   var warnBox = document.getElementById('workerWarning');
   if (ownersArr.length > 0) {
