@@ -190,7 +190,8 @@ var barcodeInput = document.getElementById('barcodeInput');
 barcodeInput.addEventListener('click', function() {
   this.removeAttribute('inputmode');
 });
-  window.onload = function() {
+
+window.onload = function() {
   try {
     if (workerName && orderCode) {
       document.getElementById('workerNameInput').value = workerName;
@@ -240,9 +241,21 @@ function openScanScreen() {
   if (!pollInterval) {
     pollInterval = setInterval(function() {
       fetchLatestData();
+      sendSessionHeartbeat(); // إرسال نبضة تواجد مستمرة فور فتح الجلسة
       if(currentCode) keepLockAlive(currentCode);
     }, 2000);
   }
+}
+
+// دالة إرسال التواجد العام في الجلسة (لإظهار الاسم بالبرنامج المركزي دائماً)
+function sendSessionHeartbeat() {
+  if (!workerName || !orderCode) return;
+  var cleanKey = workerName.replace(/[.#$\[\]]/g, "_");
+  fetch(DB_URL + '/orders/' + orderCode + '/activeSessions/' + cleanKey + '.json', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: workerName, timestamp: Date.now() })
+  }).catch(function(e){});
 }
 
 function fetchLatestData() {
@@ -274,6 +287,13 @@ function logout() {
   var confirmExit = confirm("هل أنت تأكد من تسجيل الخروج؟");
   if (confirmExit) {
     if (pollInterval) clearInterval(pollInterval);
+    
+    // إزالة اسم العامل فوراً عند الضغط على خروج
+    if (workerName && orderCode) {
+      var cleanKey = workerName.replace(/[.#$\[\]]/g, "_");
+      fetch(DB_URL + '/orders/' + orderCode + '/activeSessions/' + cleanKey + '.json', { method: 'DELETE' }).catch(function(e){});
+    }
+
     try {
       localStorage.removeItem('bp_worker');
       localStorage.removeItem('bp_code');
@@ -295,7 +315,6 @@ document.getElementById('scanForm').addEventListener('submit', function(e) {
   if (!code) return;
 
   if (code === currentCode && itemsData[code]) {
-    // التأكد من عدم وجود قفل من عامل آخر
     var lockWorker = getActiveLockWorker(itemsData[code]);
     if (!lockWorker && activeBranch) {
       var currentVal = Number(itemsData[code].branches && itemsData[code].branches[activeBranch] ? itemsData[code].branches[activeBranch].actual : 0) || 0;
@@ -332,13 +351,10 @@ document.getElementById('scanForm').addEventListener('submit', function(e) {
   safeFocus();
 });
 
-// محاولة حجز القفل الثابت للعامل الأول
 function tryAcquireLock(code) {
   if (!workerName || !code) return;
   var item = itemsData[code];
-  
   var activeLock = getActiveLockWorker(item);
-  // لو مفيش حد حاطط قفل حالي، يوضع القفل باسم العامل الحالي
   if (!activeLock) {
     fetch(DB_URL + '/orders/' + orderCode + '/items/' + code + '/lock.json', {
       method: 'PUT',
@@ -348,7 +364,6 @@ function tryAcquireLock(code) {
   }
 }
 
-// تجديد وقت القفل لإبقائه نشطاً للعامل الأول
 function keepLockAlive(code) {
   if (!workerName || !code) return;
   var item = itemsData[code];
@@ -361,7 +376,6 @@ function keepLockAlive(code) {
   }
 }
 
-// إرجاع اسم العامل الحاجز للمنتج إن وجد وكان نشطاً خلال آخر 7 ثوانٍ
 function getActiveLockWorker(row) {
   if (row && row.lock && row.lock.worker && row.lock.worker !== workerName) {
     if (Date.now() - row.lock.timestamp < 7000) {
@@ -380,7 +394,6 @@ function renderResult(code, row, focusBranch) {
 
   if (focusBranch !== undefined) activeBranch = focusBranch;
 
-  // فحص هل المنتج محجوز بقفل من عامل آخر
   var lockWorker = getActiveLockWorker(row);
   var isReadOnly = !!lockWorker;
 
@@ -443,7 +456,6 @@ function updateBranchActual(code, branch, val) {
   if (!code || !branch) return;
   if (!itemsData[code]) return;
   
-  // حماية صارمة: منع حفظ أي تعديل إطلاقاً إن كان هناك قفل للغير
   if (getActiveLockWorker(itemsData[code])) return;
 
   if (!itemsData[code].branches) itemsData[code].branches = {};
