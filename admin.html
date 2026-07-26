@@ -75,7 +75,6 @@
         </div>
       </div>
       
-      <!-- زر تصدير الإكسيل -->
       <button class="btn-export" onclick="exportToExcel()">
         📊 تصدير النتيجة إلى الإكسيل
       </button>
@@ -104,15 +103,37 @@ let currentActiveCode = localStorage.getItem('bp_admin_code') || null;
 let currentItemsData = null;
 let eventSource = null;
 
-// التحقق لو كان هناك طلبية مفتوحة عند عمل Refresh
+// تحميل البيانات فور فتح الصفحة إذا كان هناك كود سابق
 window.addEventListener('DOMContentLoaded', () => {
   if (currentActiveCode) {
-    document.getElementById('uploadCard').classList.add('hidden');
-    document.getElementById('liveDashboard').classList.remove('hidden');
-    document.getElementById('orderCodeDisplay').textContent = currentActiveCode;
-    startLiveMonitoring(currentActiveCode);
+    showDashboard(currentActiveCode);
   }
 });
+
+function showDashboard(code) {
+  document.getElementById('uploadCard').classList.add('hidden');
+  document.getElementById('liveDashboard').classList.remove('hidden');
+  document.getElementById('orderCodeDisplay').textContent = code;
+  
+  // جلب البيانات فوراً لضمان عدم بقاء الشاشة فارغة
+  fetchOrderData(code);
+  
+  // بدء الاستماع اللحظي للتغيرات
+  startLiveMonitoring(code);
+}
+
+async function fetchOrderData(code) {
+  try {
+    const res = await fetch(`${DB_URL}/orders/${code}.json`);
+    const data = await res.json();
+    if (data && data.items) {
+      currentItemsData = data.items;
+      updateDashboardUI(data.items);
+    }
+  } catch(err) {
+    console.error("Error fetching order:", err);
+  }
+}
 
 const dropZone = document.getElementById('dropZone');
 dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.style.borderColor = '#1f6f5c'; });
@@ -180,12 +201,7 @@ async function processExcelData(rows) {
       document.getElementById('status').textContent = '';
       currentActiveCode = orderCode;
       localStorage.setItem('bp_admin_code', orderCode);
-      
-      document.getElementById('uploadCard').classList.add('hidden');
-      document.getElementById('orderCodeDisplay').textContent = orderCode;
-      document.getElementById('liveDashboard').classList.remove('hidden');
-      
-      startLiveMonitoring(orderCode);
+      showDashboard(orderCode);
     }
   } catch(err) {
     alert('حدث خطأ في الاتصال بالسحابة!');
@@ -195,6 +211,7 @@ async function processExcelData(rows) {
 function startLiveMonitoring(orderCode) {
   if(eventSource) eventSource.close();
   
+  // الاستماع المباشر للتحديثات
   eventSource = new EventSource(`${DB_URL}/orders/${orderCode}.json`);
   eventSource.onmessage = function(e) {
     const data = JSON.parse(e.data);
@@ -256,14 +273,19 @@ function updateDashboardUI(items) {
 }
 
 // دالة تصدير ملف الإكسيل النهائى
-function exportToExcel() {
+async function exportToExcel() {
+  if (!currentActiveCode) return alert('لا توجد طلبية نشطة!');
+
+  // إعادة التأكد من جلب أحدث بيانات قبل التصدير
+  await fetchOrderData(currentActiveCode);
+
   if (!currentItemsData) return alert('لا توجد بيانات لتصديرها!');
 
-  // استخراج أسماء الفروع
   const sampleItem = Object.values(currentItemsData)[0];
-  const branchNames = Object.keys(sampleItem.branches || {});
+  if (!sampleItem || !sampleItem.branches) return alert('بيانات الطلبية غير مكتملة!');
 
-  // تجهيز هيدر الإكسيل (الباركود - اسم المنتج - فروع المطلوب - فروع المحضر)
+  const branchNames = Object.keys(sampleItem.branches);
+
   const excelRows = [];
   const header = ['الباركود', 'اسم المنتج'];
   
@@ -273,22 +295,18 @@ function exportToExcel() {
   
   excelRows.push(header);
 
-  // تعبئة البيانات
   Object.keys(currentItemsData).forEach(barcode => {
     const item = currentItemsData[barcode];
     const row = [barcode, item.product || ''];
 
-    // إضافة التارجت
     branchNames.forEach(b => {
       row.push(item.branches[b] ? item.branches[b].target : 0);
     });
 
-    // إضافة المحضر الفعلي
     branchNames.forEach(b => {
-      row.push(item.branches[b] ? item.branches[b].actual : 0);
+      row.push(item.branches[b] ? (item.branches[b].actual !== "" ? item.branches[b].actual : 0) : 0);
     });
 
-    // إضافة اسم العامل
     branchNames.forEach(b => {
       row.push(item.branches[b] ? (item.branches[b].worker || '') : '');
     });
@@ -296,7 +314,6 @@ function exportToExcel() {
     excelRows.push(row);
   });
 
-  // إنشاء وتنزيل ملف Excel
   const worksheet = XLSX.utils.aoa_to_sheet(excelRows);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, "تقرير التحضير");
