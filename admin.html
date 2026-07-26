@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BranchPrep - لوحة إدارة الطلبيات</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root { --primary: #1f6f5c; --bg: #f4f6f8; --card: #ffffff; --text: #12181f; }
+  body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; }
+  .container { max-width: 900px; margin: 0 auto; background: var(--card); padding: 30px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+  h1 { margin-top: 0; color: var(--primary); text-align: center; }
+  .drop-zone { border: 2px dashed #b2c8c2; border-radius: 12px; padding: 40px; text-align: center; background: #fafcfb; cursor: pointer; transition: 0.2s; margin-bottom: 20px; }
+  .drop-zone:hover { border-color: var(--primary); background: #f0f7f5; }
+  .btn { background: var(--primary); color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 1rem; width: 100%; }
+  .btn:hover { background: #154d40; }
+  .code-box { background: #eef7f4; border: 2px solid var(--primary); padding: 20px; border-radius: 12px; text-align: center; margin-top: 20px; display: none; }
+  .code-num { font-size: 3.5rem; font-weight: 800; color: var(--primary); letter-spacing: 4px; margin: 10px 0; }
+  .status { font-weight: bold; margin-top: 10px; text-align: center; color: #666; }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>BranchPrep Cloud 📦</h1>
+  <p style="text-align: center; color: #666;">رفع طلبية جديدة وتوليد كود التحضير للعمال</p>
+  
+  <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+    <div style="font-size: 3rem; margin-bottom: 10px;">📁</div>
+    <h3>اضغط هنا لاختيار ملف الإكسيل أو اسحبه إلى هنا</h3>
+    <p style="font-size: 0.85rem; color: #888;">يدعم ملفات .xlsx و .xls</p>
+    <input type="file" id="fileInput" accept=".xlsx, .xls" style="display:none;" onchange="handleFile(this.files[0])">
+  </div>
+
+  <div id="status" class="status"></div>
+
+  <div class="code-box" id="codeBox">
+    <div>تم إنشاء الطلبية بنجاح! كود التحضير هو:</div>
+    <div class="code-num" id="orderCodeDisplay">0000</div>
+    <p>أعطِ هذا الكود للعمال لبدء التحضير فوراً من أجهزة الموبايل 🚀</p>
+  </div>
+</div>
+
+<script>
+const DB_URL = "https://branchprep-default-rtdb.firebaseio.com";
+
+const dropZone = document.getElementById('dropZone');
+dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.style.borderColor = '#1f6f5c'; });
+dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor = '#b2c8c2'; });
+dropZone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+
+function handleFile(file) {
+  if (!file) return;
+  document.getElementById('status').textContent = 'جاري قراءة ملف الإكسيل...';
+  
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: 'array' });
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+      
+      processExcelData(json);
+    } catch(err) {
+      alert('خطأ في قراءة ملف الإكسيل! تأكد من تنسيق الملف.');
+      document.getElementById('status').textContent = '';
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+async function processExcelData(rows) {
+  if (rows.length < 2) {
+    alert('الملف فارغ أو لا يحتوي على بيانات كافية!');
+    return;
+  }
+
+  document.getElementById('status').textContent = 'جاري معالجة البيانات وبناء الطلبية...';
+
+  const header = rows[0];
+  const branchNames = header.slice(2);
+  
+  const items = {};
+  
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    const barcode = String(row[0] || '').trim();
+    const productName = String(row[1] || '').trim();
+    
+    if (!barcode) continue;
+    
+    const branches = {};
+    branchNames.forEach((bName, idx) => {
+      const qty = Number(row[idx + 2]) || 0;
+      if (qty > 0) {
+        branches[bName] = { target: qty, actual: "", worker: "" };
+      }
+    });
+    
+    if (Object.keys(branches).length > 0) {
+      items[barcode] = {
+        product: productName,
+        branches: branches
+      };
+    }
+  }
+
+  const orderCode = Math.floor(1000 + Math.random() * 9000).toString();
+  
+  document.getElementById('status').textContent = 'جاري رفع الطلبية إلى السحابة...';
+
+  try {
+    const res = await fetch(`${DB_URL}/orders/${orderCode}.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        createdAt: new Date().toISOString(),
+        items: items,
+        locks: {}
+      })
+    });
+
+    if (res.ok) {
+      document.getElementById('status').textContent = '';
+      document.getElementById('orderCodeDisplay').textContent = orderCode;
+      document.getElementById('codeBox').style.display = 'block';
+    } else {
+      alert('حدث خطأ أثناء الاتصال بالسيرفر!');
+    }
+  } catch(err) {
+    alert('تعذر الاتصال بالسحابة! تحقق من النت.');
+  }
+}
+</script>
+</body>
+</html>
