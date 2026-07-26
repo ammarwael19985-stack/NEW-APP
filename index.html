@@ -107,4 +107,391 @@
     text-align:center; font-size:1rem; font-weight:700; color:var(--ink); background:#faf8f2;
   }
   .actual-input:focus { outline:2px solid var(--accent); border-color:var(--accent); }
-  .branch-
+  .branch-table td.zero-note { color:#b7b1a3; font-size:.8rem; text-align:center; }
+  .not-found {
+    background:#fbeae5; border:1px solid #e3b6a6; color:var(--warn);
+    border-radius:14px; padding:24px; text-align:center; font-size:1rem; font-weight:700;
+  }
+  .not-found .code { display:block; margin-top:6px; font-weight:400; font-size:.85rem; direction:ltr; }
+  .placeholder { text-align:center; color:var(--muted); padding:40px 10px; font-size:.9rem; }
+  .history { margin-top:22px; }
+  .history h3 { font-size:.8rem; color:var(--muted); margin:0 0 10px; font-weight:700; }
+  .history-item { display:flex; justify-content:space-between; padding:8px 4px; font-size:.82rem; border-bottom:1px solid var(--line); }
+  .history-item span.code { color:var(--muted); direction:ltr; }
+  .error-msg { background:#fbeae5; border:1px solid #e3b6a6; color:var(--warn); padding:12px 14px; border-radius:10px; font-size:.85rem; margin-top:16px; display:none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>BranchPrep <span style="background:var(--accent);color:#fff;font-size:.62rem;padding:2px 8px;border-radius:10px;vertical-align:middle;">تحضير الفروع</span></h1>
+    <span class="tag" id="statusTag">جاهز</span>
+  </header>
+
+  <div id="loginScreen">
+    <div class="login-card">
+      <h2 style="margin-top:0;">مرحباً بك 📦</h2>
+      <p style="color:var(--muted); font-size:0.85rem; margin-bottom:20px;">ادخل اسمك وكود الطلبية من الكمبيوتر للبدء</p>
+      <input type="text" id="workerNameInput" placeholder="اسم العامل (مثال: عمار)" />
+      <input type="number" id="orderCodeInput" placeholder="كود الطلبية (4 أرقام)" />
+      <button class="file-btn" id="loginBtn" type="button" onclick="loginToOrder()">دخول للتحضير 🚀</button>
+      <div class="error-msg" id="loginError"></div>
+    </div>
+  </div>
+
+  <div id="scanScreen" style="display:none;">
+    <div class="status-bar">
+      <span>العامل: <b id="workerLabel">-</b> | الطلبية: <b id="codeLabel">-</b></span>
+      <div>
+        <button onclick="fetchLatestData()" style="color:var(--accent); margin-left:8px;">تحديث 🔄</button>
+        <button id="logoutBtn" onclick="logout()">خروج 🚪</button>
+      </div>
+    </div>
+
+    <div class="scan-box">
+      <label>اضرب الباركود دلوقتي</label>
+      <form id="scanForm">
+        <input type="text" id="barcodeInput" inputmode="none" placeholder="امسح الباركود واضغط Enter" autocomplete="off" />
+      </form>
+    </div>
+
+    <div id="workerWarning" class="worker-warning"></div>
+
+    <div id="placeholder" class="placeholder">استنى مسح أول باركود عشان تطلعلك الكميات هنا</div>
+    <div id="resultBox" class="result" style="display:none;"></div>
+    <div id="notFoundBox" class="not-found" style="display:none;"></div>
+
+    <div class="history" id="historyBox" style="display:none;">
+      <h3>آخر عمليات المسح</h3>
+      <div id="historyList"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+var DB_URL = "https://branchprep-default-rtdb.firebaseio.com";
+var workerName = "";
+var orderCode = "";
+var itemsData = {};
+var branchNames = [];
+var historyListArr = [];
+var currentCode = null;
+var activeBranch = null;
+
+try {
+  workerName = localStorage.getItem('bp_worker') || "";
+  orderCode = localStorage.getItem('bp_code') || "";
+} catch(e){}
+
+var barcodeInput = document.getElementById('barcodeInput');
+barcodeInput.addEventListener('click', function() {
+  this.removeAttribute('inputmode');
+});
+
+window.onload = function() {
+  try {
+    if (workerName && orderCode) {
+      document.getElementById('workerNameInput').value = workerName;
+      document.getElementById('orderCodeInput').value = orderCode;
+      openScanScreen();
+      fetchLatestData();
+    }
+  } catch(e) {}
+};
+
+function loginToOrder() {
+  try {
+    var wName = document.getElementById('workerNameInput').value.trim();
+    var oCode = document.getElementById('orderCodeInput').value.trim();
+    var errDiv = document.getElementById('loginError');
+
+    if (!wName || !oCode) {
+      errDiv.style.display = 'block';
+      errDiv.textContent = 'برجاء كتابة الاسم وكود الطلبية أولاً';
+      return;
+    }
+
+    errDiv.style.display = 'none';
+    workerName = wName;
+    orderCode = oCode;
+
+    try {
+      localStorage.setItem('bp_worker', workerName);
+      localStorage.setItem('bp_code', orderCode);
+    } catch(e){}
+
+    openScanScreen();
+    fetchLatestData();
+  } catch(e) {
+    alert("حدث خطأ في التسجيل، جرب مرة أخرى.");
+  }
+}
+
+function openScanScreen() {
+  document.getElementById('workerLabel').textContent = workerName;
+  document.getElementById('codeLabel').textContent = orderCode;
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('scanScreen').style.display = 'block';
+  document.getElementById('statusTag').textContent = 'جاهز للمسح';
+  safeFocus();
+}
+
+function fetchLatestData() {
+  document.getElementById('statusTag').textContent = 'جاري التحديث...';
+  fetch(DB_URL + '/orders/' + orderCode + '.json')
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      if (data && data.items) {
+        itemsData = data.items;
+        var branchesSet = {};
+        Object.keys(itemsData).forEach(function(k) {
+          var item = itemsData[k];
+          if (item && item.branches) {
+            Object.keys(item.branches).forEach(function(b) { branchesSet[b] = true; });
+          }
+        });
+        branchNames = Object.keys(branchesSet);
+        document.getElementById('statusTag').textContent = 'جاهز للمسح';
+        startLiveSync();
+        if (currentCode && itemsData[currentCode]) {
+          renderResult(currentCode, itemsData[currentCode], activeBranch);
+        }
+      } else {
+        alert('كود الطلبية غير موجود أو تم إنهاؤها!');
+        logout();
+      }
+    })
+    .catch(function(err) {
+      document.getElementById('statusTag').textContent = 'متصل محلياً';
+    });
+}
+
+function logout() {
+  try {
+    localStorage.removeItem('bp_worker');
+    localStorage.removeItem('bp_code');
+  } catch(e){}
+  location.reload();
+}
+
+function startLiveSync() {
+  try {
+    var es = new EventSource(DB_URL + '/orders/' + orderCode + '.json');
+    es.onmessage = function(e) {
+      var data = JSON.parse(e.data);
+      if (data && data.items) {
+        itemsData = data.items;
+        if (currentCode && itemsData[currentCode]) {
+          renderResult(currentCode, itemsData[currentCode], activeBranch);
+        }
+      }
+    };
+  } catch(e){}
+}
+
+function safeFocus() {
+  setTimeout(function() {
+    barcodeInput.setAttribute('inputmode', 'none');
+    try { barcodeInput.focus({ preventScroll: true }); } catch (e) { barcodeInput.focus(); }
+  }, 100);
+}
+
+document.getElementById('scanForm').addEventListener('submit', function(e) {
+  e.preventDefault();
+  var code = barcodeInput.value.trim();
+  if (!code) return;
+
+  if (code === currentCode && itemsData[code]) {
+    if (activeBranch) {
+      var currentVal = Number(itemsData[code].branches && itemsData[code].branches[activeBranch] ? itemsData[code].branches[activeBranch].actual : 0) || 0;
+      updateBranchActual(code, activeBranch, currentVal + 1);
+    }
+    barcodeInput.value = '';
+    safeFocus();
+    return;
+  }
+
+  document.getElementById('placeholder').style.display = 'none';
+
+  if (itemsData[code]) {
+    document.getElementById('notFoundBox').style.display = 'none';
+    document.getElementById('resultBox').style.display = 'block';
+    activeBranch = null;
+    
+    announceActiveWorker(code);
+    renderResult(code, itemsData[code]);
+
+    historyListArr.unshift({ name: itemsData[code].product || code, code: code });
+    historyListArr = historyListArr.slice(0, 8);
+    renderHistory();
+  } else {
+    currentCode = null;
+    activeBranch = null;
+    document.getElementById('resultBox').style.display = 'none';
+    document.getElementById('notFoundBox').style.display = 'block';
+    document.getElementById('workerWarning').style.display = 'none';
+    document.getElementById('notFoundBox').innerHTML = 'الباركود ده مش موجود في الطلبية <span class="code">' + escapeHtml(code) + '</span>';
+  }
+
+  barcodeInput.value = '';
+  safeFocus();
+});
+
+function announceActiveWorker(code) {
+  fetch(DB_URL + '/orders/' + orderCode + '/items/' + code + '/currentWorker.json', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: workerName, timestamp: Date.now() })
+  }).catch(function(e){});
+}
+  function renderResult(code, row, focusBranch) {
+  currentCode = code;
+  var total = 0;
+  var doneCount = 0;
+  var neededCount = 0;
+  var rowsHtml = '';
+  var otherWorkersSet = {};
+
+  if (focusBranch !== undefined) activeBranch = focusBranch;
+
+  if (row.currentWorker && row.currentWorker.name && row.currentWorker.name !== workerName) {
+    if (Date.now() - row.currentWorker.timestamp < 600000) {
+      otherWorkersSet[row.currentWorker.name] = true;
+    }
+  }
+
+  branchNames.forEach(function(bName) {
+    var bData = (row.branches && row.branches[bName]) ? row.branches[bName] : { target:0, actual:"", worker:"" };
+    var qtyNum = Number(bData.target) || 0;
+    var actualVal = bData.actual;
+    var actualNum = Number(actualVal) || 0;
+    
+    total += qtyNum;
+    var isZero = qtyNum === 0;
+
+    if (bData.worker && bData.worker.trim() !== "" && bData.worker !== workerName) {
+      otherWorkersSet[bData.worker] = true;
+    }
+
+    var actionCell;
+    var doneClass = '';
+    var selectedClass = '';
+
+    if (isZero) {
+      actionCell = '<td class="zero-note">لا يحتاج</td><td></td>';
+    } else {
+      neededCount++;
+      var isComplete = actualVal !== '' && actualNum >= qtyNum;
+      if (isComplete) { doneCount++; doneClass = ' branch-done'; }
+      if (bName === activeBranch) selectedClass = ' selected';
+
+      actionCell =
+        '<td class="actual"><input type="number" class="actual-input" data-branch="' + escapeHtml(bName) + '" placeholder="0" value="' + escapeHtml(String(actualVal)) + '" onclick="event.stopPropagation();" /></td>' +
+        '<td class="check"><button type="button" class="fill-btn" data-branch="' + escapeHtml(bName) + '">⚡</button></td>';
+    }
+
+    var zeroClass = isZero ? ' zero' : '';
+    var workerText = bData.worker ? ' <small style="color:#217346; font-weight:bold;">(' + escapeHtml(bData.worker) + ')</small>' : '';
+    
+    rowsHtml += '<tr class="' + (zeroClass + doneClass + selectedClass).trim() + '" data-branch="' + escapeHtml(bName) + '">' +
+      '<td>' + escapeHtml(bName) + workerText + '</td>' +
+      '<td class="qty">' + qtyNum + '</td>' +
+      actionCell +
+      '</tr>';
+  });
+
+  var otherWorkersArr = Object.keys(otherWorkersSet);
+  var warnBox = document.getElementById('workerWarning');
+  if (otherWorkersArr.length > 0) {
+    warnBox.style.display = 'block';
+    warnBox.innerHTML = '⚠️ تنبيه: العامل (<b>' + escapeHtml(otherWorkersArr.join(' و ')) + '</b>) شغال أو متواجد على هذا المنتج حالياً!';
+  } else {
+    warnBox.style.display = 'none';
+  }
+
+  rowsHtml += '<tr class="total-row"><td>الإجمالي</td><td class="qty">' + total + '</td><td></td><td></td></tr>';
+
+  document.getElementById('resultBox').innerHTML =
+    '<div class="pname">' + escapeHtml(row.product || code) + '</div>' +
+    (row.product ? '<div class="pbarcode">' + escapeHtml(code) + '</div>' : '') +
+    '<div class="progress-note">اتحضر ' + doneCount + ' من ' + neededCount + ' فرع محتاج تحضير — دوس على الفرع واضرب الباركود لتسجيله، أو (⚡) للملء.</div>' +
+    '<table class="branch-table"><tbody>' + rowsHtml + '</tbody></table>';
+}
+
+function updateBranchActual(code, branch, val) {
+  if (!code || !branch) return;
+  if (!itemsData[code]) return;
+  if (!itemsData[code].branches) itemsData[code].branches = {};
+  if (!itemsData[code].branches[branch]) {
+    itemsData[code].branches[branch] = { target:0, actual:"", worker:"" };
+  }
+  
+  itemsData[code].branches[branch].actual = val;
+  itemsData[code].branches[branch].worker = workerName;
+
+  renderResult(code, itemsData[code], branch);
+
+  fetch(DB_URL + '/orders/' + orderCode + '/items/' + code + '/branches/' + branch + '.json', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ actual: val, worker: workerName })
+  }).catch(function(e){});
+}
+
+var resBox = document.getElementById('resultBox');
+resBox.addEventListener('click', function(e) {
+  var btn = e.target.closest('.fill-btn');
+  if (btn && currentCode) {
+    e.stopPropagation();
+    var branch = btn.getAttribute('data-branch');
+    if (branch) {
+      var targetQty = (itemsData[currentCode] && itemsData[currentCode].branches && itemsData[currentCode].branches[branch]) ? itemsData[currentCode].branches[branch].target : 0;
+      updateBranchActual(currentCode, branch, targetQty);
+      safeFocus();
+    }
+    return;
+  }
+
+  var tr = e.target.closest('tr[data-branch]');
+  if (tr && currentCode) {
+    if (tr.classList.contains('zero') || e.target.classList.contains('actual-input')) return;
+    var bName = tr.getAttribute('data-branch');
+    if (bName) {
+      activeBranch = bName;
+      renderResult(currentCode, itemsData[currentCode], bName);
+      safeFocus();
+    }
+  }
+});
+
+resBox.addEventListener('change', function(e) {
+  var input = e.target.closest('.actual-input');
+  if (input && currentCode) {
+    var branch = input.getAttribute('data-branch');
+    if (branch) {
+      updateBranchActual(currentCode, branch, input.value);
+    }
+  }
+});
+
+function renderHistory() {
+  var hBox = document.getElementById('historyBox');
+  var hList = document.getElementById('historyList');
+  if (historyListArr.length === 0) {
+    hBox.style.display = 'none';
+    return;
+  }
+  hBox.style.display = 'block';
+  hList.innerHTML = historyListArr.map(function(h) {
+    return '<div class="history-item"><span class="name">' + escapeHtml(h.name) + '</span><span class="code">' + escapeHtml(h.code) + '</span></div>';
+  }).join('');
+}
+
+function escapeHtml(str) {
+  var div = document.createElement('div');
+  div.textContent = str === undefined || str === null ? '' : String(str);
+  return div.innerHTML;
+}
+</script>
+</body>
+</html>
