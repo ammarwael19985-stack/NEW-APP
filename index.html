@@ -59,7 +59,6 @@
     padding:6px 12px; font-size:.75rem; color:var(--warn); cursor:pointer;
   }
 
-  /* شريط التنبيه والأقفال */
   .worker-warning {
     background:#fbeae5; border:2px solid var(--warn); color:var(--warn);
     padding:12px 14px; border-radius:10px; font-weight:bold; font-size:0.95rem;
@@ -94,7 +93,7 @@
     cursor:pointer; font-size:1rem; color:var(--accent-dark); transition:all 0.15s ease;
   }
   .fill-btn:active { background:var(--accent); color:#fff; border-color:var(--accent); transform:scale(0.92); }
-  .fill-btn:disabled { opacity:0.3; cursor:not-allowed; }
+  .fill-btn:disabled { opacity:0.2; cursor:not-allowed; pointer-events:none; }
   
   tr.branch-done td { color:#9a9488; }
   tr.branch-done td.qty { color:#9a9488; text-decoration:line-through; }
@@ -109,7 +108,7 @@
     text-align:center; font-size:1rem; font-weight:700; color:var(--ink); background:#faf8f2;
   }
   .actual-input:focus { outline:2px solid var(--accent); border-color:var(--accent); }
-  .actual-input:disabled { background:#e2ded8; color:#888; cursor:not-allowed; border-color:#ccc; }
+  .actual-input:disabled { background:#e2ded8 !important; color:#999 !important; cursor:not-allowed; border-color:#ccc; }
 
   .branch-table td.zero-note { color:#b7b1a3; font-size:.8rem; text-align:center; }
   .not-found {
@@ -191,8 +190,7 @@ var barcodeInput = document.getElementById('barcodeInput');
 barcodeInput.addEventListener('click', function() {
   this.removeAttribute('inputmode');
 });
-
-window.onload = function() {
+  window.onload = function() {
   try {
     if (workerName && orderCode) {
       document.getElementById('workerNameInput').value = workerName;
@@ -242,7 +240,7 @@ function openScanScreen() {
   if (!pollInterval) {
     pollInterval = setInterval(function() {
       fetchLatestData();
-      if(currentCode) heartbeatActiveWorker(currentCode);
+      if(currentCode) keepLockAlive(currentCode);
     }, 2000);
   }
 }
@@ -297,9 +295,9 @@ document.getElementById('scanForm').addEventListener('submit', function(e) {
   if (!code) return;
 
   if (code === currentCode && itemsData[code]) {
-    // التأكد أولاً من أن العامل له حق التعديل
-    var isReadOnly = checkReadOnlyStatus(itemsData[code]);
-    if (!isReadOnly && activeBranch) {
+    // التأكد من عدم وجود قفل من عامل آخر
+    var lockWorker = getActiveLockWorker(itemsData[code]);
+    if (!lockWorker && activeBranch) {
       var currentVal = Number(itemsData[code].branches && itemsData[code].branches[activeBranch] ? itemsData[code].branches[activeBranch].actual : 0) || 0;
       updateBranchActual(code, activeBranch, currentVal + 1);
     }
@@ -315,7 +313,7 @@ document.getElementById('scanForm').addEventListener('submit', function(e) {
     document.getElementById('resultBox').style.display = 'block';
     activeBranch = null;
     
-    heartbeatActiveWorker(code);
+    tryAcquireLock(code);
     renderResult(code, itemsData[code]);
 
     historyListArr.unshift({ name: itemsData[code].product || code, code: code });
@@ -334,24 +332,43 @@ document.getElementById('scanForm').addEventListener('submit', function(e) {
   safeFocus();
 });
 
-// تجديد وقت تواجد العامل في المنتج
-function heartbeatActiveWorker(code) {
+// محاولة حجز القفل الثابت للعامل الأول
+function tryAcquireLock(code) {
   if (!workerName || !code) return;
-  fetch(DB_URL + '/orders/' + orderCode + '/items/' + code + '/activeSession.json', {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ worker: workerName, timestamp: Date.now() })
-  }).catch(function(e){});
+  var item = itemsData[code];
+  
+  var activeLock = getActiveLockWorker(item);
+  // لو مفيش حد حاطط قفل حالي، يوضع القفل باسم العامل الحالي
+  if (!activeLock) {
+    fetch(DB_URL + '/orders/' + orderCode + '/items/' + code + '/lock.json', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ worker: workerName, timestamp: Date.now() })
+    }).catch(function(e){});
+  }
 }
 
-function checkReadOnlyStatus(row) {
-  if (row.activeSession && row.activeSession.worker && row.activeSession.worker !== workerName) {
-    // لو فيه عامل تاني أرسل إشارة تواجد في آخر 6 ثواني
-    if (Date.now() - row.activeSession.timestamp < 6000) {
-      return row.activeSession.worker;
+// تجديد وقت القفل لإبقائه نشطاً للعامل الأول
+function keepLockAlive(code) {
+  if (!workerName || !code) return;
+  var item = itemsData[code];
+  if (item && item.lock && item.lock.worker === workerName) {
+    fetch(DB_URL + '/orders/' + orderCode + '/items/' + code + '/lock/timestamp.json', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Date.now())
+    }).catch(function(e){});
+  }
+}
+
+// إرجاع اسم العامل الحاجز للمنتج إن وجد وكان نشطاً خلال آخر 7 ثوانٍ
+function getActiveLockWorker(row) {
+  if (row && row.lock && row.lock.worker && row.lock.worker !== workerName) {
+    if (Date.now() - row.lock.timestamp < 7000) {
+      return row.lock.worker;
     }
   }
-  return false;
+  return null;
 }
 
 function renderResult(code, row, focusBranch) {
@@ -363,14 +380,14 @@ function renderResult(code, row, focusBranch) {
 
   if (focusBranch !== undefined) activeBranch = focusBranch;
 
-  // فحص هل العامل الأول متواجد حالياً ويملك حق التحضير
-  var activeOtherWorker = checkReadOnlyStatus(row);
-  var isReadOnly = !!activeOtherWorker;
+  // فحص هل المنتج محجوز بقفل من عامل آخر
+  var lockWorker = getActiveLockWorker(row);
+  var isReadOnly = !!lockWorker;
 
   var warnBox = document.getElementById('workerWarning');
   if (isReadOnly) {
     warnBox.style.display = 'block';
-    warnBox.innerHTML = '🔒 <b>تنبيه:</b> العامل (<b>' + escapeHtml(activeOtherWorker) + '</b>) متواجد حالياً على هذا المنتج!<br><small style="font-weight:normal;">التعديل معطل مؤقتاً لمنع التضارب، وسيتفعل فور خروجه.</small>';
+    warnBox.innerHTML = '🔒 <b>تنبيه:</b> العامل (<b>' + escapeHtml(lockWorker) + '</b>) متواجد شغال على هذا المنتج حالياً!<br><small style="font-weight:normal;">التعديل مقفول عليك نهائياً ومتاح فقط للعامل (<b>' + escapeHtml(lockWorker) + '</b>).</small>';
   } else {
     warnBox.style.display = 'none';
   }
@@ -396,12 +413,13 @@ function renderResult(code, row, focusBranch) {
       if (isComplete) { doneCount++; doneClass = ' branch-done'; }
       if (bName === activeBranch) selectedClass = ' selected';
 
-      var disabledAttr = isReadOnly ? 'disabled' : '';
+      var disabledAttr = isReadOnly ? 'disabled="disabled"' : '';
 
       actionCell =
         '<td class="actual"><input type="number" class="actual-input" data-branch="' + escapeHtml(bName) + '" placeholder="0" value="' + escapeHtml(String(actualVal)) + '" ' + disabledAttr + ' onclick="event.stopPropagation();" /></td>' +
         '<td class="check"><button type="button" class="fill-btn" data-branch="' + escapeHtml(bName) + '" ' + disabledAttr + '>⚡</button></td>';
     }
+
     var zeroClass = isZero ? ' zero' : '';
     var workerText = bData.worker ? ' <small style="color:#217346; font-weight:bold;">(' + escapeHtml(bData.worker) + ')</small>' : '';
     
@@ -417,7 +435,7 @@ function renderResult(code, row, focusBranch) {
   document.getElementById('resultBox').innerHTML =
     '<div class="pname">' + escapeHtml(row.product || code) + '</div>' +
     (row.product ? '<div class="pbarcode">' + escapeHtml(code) + '</div>' : '') +
-    '<div class="progress-note">اتحضر ' + doneCount + ' من ' + neededCount + ' فرع محتاج تحضير — دوس على الفرع واضرب الباركود لتسجيله، أو (⚡) للملء.</div>' +
+    '<div class="progress-note">اتحضر ' + doneCount + ' من ' + neededCount + ' فرع محتاج تحضير — دوس على الفرع واضغط الباركود لتسجيله، أو (⚡) للملء.</div>' +
     '<table class="branch-table"><tbody>' + rowsHtml + '</tbody></table>';
 }
 
@@ -425,8 +443,8 @@ function updateBranchActual(code, branch, val) {
   if (!code || !branch) return;
   if (!itemsData[code]) return;
   
-  // حماية إضافية تمنع الكتابة لو العامل الثاني
-  if (checkReadOnlyStatus(itemsData[code])) return;
+  // حماية صارمة: منع حفظ أي تعديل إطلاقاً إن كان هناك قفل للغير
+  if (getActiveLockWorker(itemsData[code])) return;
 
   if (!itemsData[code].branches) itemsData[code].branches = {};
   if (!itemsData[code].branches[branch]) {
@@ -447,7 +465,7 @@ function updateBranchActual(code, branch, val) {
 
 var resBox = document.getElementById('resultBox');
 resBox.addEventListener('click', function(e) {
-  if (itemsData[currentCode] && checkReadOnlyStatus(itemsData[currentCode])) return;
+  if (itemsData[currentCode] && getActiveLockWorker(itemsData[currentCode])) return;
 
   var btn = e.target.closest('.fill-btn');
   if (btn && currentCode) {
@@ -474,7 +492,7 @@ resBox.addEventListener('click', function(e) {
 });
 
 resBox.addEventListener('change', function(e) {
-  if (itemsData[currentCode] && checkReadOnlyStatus(itemsData[currentCode])) return;
+  if (itemsData[currentCode] && getActiveLockWorker(itemsData[currentCode])) return;
   
   var input = e.target.closest('.actual-input');
   if (input && currentCode) {
