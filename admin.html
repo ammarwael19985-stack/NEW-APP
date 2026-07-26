@@ -42,7 +42,20 @@
   }
   .code-num { font-size:2.4rem; font-weight:900; color:var(--accent-dark); letter-spacing:2px; }
 
-  /* شبكة مؤشرات الإنجاز (الأصناف والقطعة) */
+  /* كارت العمال المتواجدين حالياً */
+  .workers-card {
+    background:#faf8f2; border:1px solid var(--line); border-radius:12px;
+    padding:14px 18px; margin-bottom:20px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+  }
+  .workers-title { font-size:0.88rem; font-weight:bold; color:var(--ink); }
+  .worker-badge {
+    background:#e2f0d9; border:1px solid #b5d5a7; color:#1e520f;
+    padding:4px 12px; border-radius:20px; font-size:0.8rem; font-weight:bold;
+    display:inline-flex; align-items:center; gap:6px;
+  }
+  .worker-badge::before { content:'●'; color:#28a745; font-size:0.8rem; }
+
+  /* شبكة مؤشرات الإنجاز */
   .progress-grid {
     display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px;
   }
@@ -77,6 +90,7 @@
     padding:3px 7px; border-radius:6px; font-size:0.75rem; margin:2px;
   }
   .branch-chip.done { background:#e2f0d9; border-color:#b5d5a7; color:#276a12; }
+  .empty-msg { text-align:center; padding:30px; color:var(--muted); font-size:0.9rem; }
 </style>
 </head>
 <body>
@@ -107,7 +121,15 @@
       </div>
     </div>
 
-    <!-- شبكة مؤشرات الإنجاز المزدوجة (الأصناف + القطع) -->
+    <!-- كارت العمال المسجلين دخول والمتواجدين حالياً -->
+    <div class="workers-card">
+      <span class="workers-title">👷 العمال الشغالين حالياً:</span>
+      <div id="activeWorkersList" style="display:flex; gap:8px; flex-wrap:wrap;">
+        <span style="color:var(--muted); font-size:0.8rem;">جاري التحقق...</span>
+      </div>
+    </div>
+
+    <!-- شبكة مؤشرات الإنجاز المزدوجة -->
     <div class="progress-grid">
       <!-- 1. مؤشر نسبة الأصناف / المنتجات -->
       <div class="prog-card">
@@ -120,7 +142,7 @@
         </div>
       </div>
 
-      <!-- 2. مؤشر نسبة القطع / الكميات الكلية -->
+      <!-- 2. مؤشر نسبة القطع الكلية -->
       <div class="prog-card">
         <div class="prog-title">
           <span>🧩 نسبة إنجاز القطع الكلية:</span>
@@ -147,7 +169,7 @@
         </tr>
       </thead>
       <tbody id="itemsTableBody">
-        <!-- يتم ملؤها حياً بالبيانات -->
+        <!-- يتم ملؤها حياً بالأصناف البدء في تحضيرها فقط -->
       </tbody>
     </table>
   </div>
@@ -188,7 +210,6 @@ function handleFileUpload(e) {
 }
 
 function processAndUploadExcel(rows) {
-  // توليد كود عشوائي من 4 أرقام
   var newCode = Math.floor(1000 + Math.random() * 9000).toString();
   var items = {};
 
@@ -263,20 +284,30 @@ function fetchAdminData() {
 function renderAdminDashboard() {
   if (!activeOrderData) return;
 
-  var totalItemsCount = 0;    // إجمالي الأصناف الكلية
-  var completedItemsCount = 0; // الأصناف المكتملة بالكامل
+  var totalItemsCount = 0;    
+  var completedItemsCount = 0; 
 
-  var totalQty = 0;          // إجمالي القطع الكلية
-  var actualQty = 0;         // القطع التي تم تحضيرها بالفعل
+  var totalQty = 0;          
+  var actualQty = 0;         
 
+  var activeWorkersMap = {}; 
   var tbodyHtml = '';
+  var activeRowsCount = 0;
 
   Object.keys(activeOrderData).forEach(function(code) {
     totalItemsCount++;
     var row = activeOrderData[code];
     var itemTargetSum = 0;
     var itemActualSum = 0;
+    var hasAnyActual = false;
     var chipsHtml = '';
+
+    // جمع أقفال العمال النشطين في الصفحة حالياً
+    if (row.lock && row.lock.worker) {
+      if (Date.now() - row.lock.timestamp < 10000) {
+        activeWorkersMap[row.lock.worker] = true;
+      }
+    }
 
     if (row.branches) {
       Object.keys(row.branches).forEach(function(bName) {
@@ -286,6 +317,14 @@ function renderAdminDashboard() {
 
         itemTargetSum += t;
         itemActualSum += a;
+
+        if (b.actual !== "") {
+          hasAnyActual = true;
+        }
+
+        if (b.worker && b.worker.trim() !== "") {
+          activeWorkersMap[b.worker] = true;
+        }
 
         if (t > 0) {
           var isDone = b.actual !== '' && a >= t;
@@ -303,24 +342,43 @@ function renderAdminDashboard() {
       completedItemsCount++;
     }
 
-    var statusBadge = isItemDone ? '<span class="badge badge-done">مكتمل</span>' : '<span class="badge badge-prog">قيد التحضير</span>';
+    // إظهار الصنف في الجدول فقط إذا تم البدء في تحضيره فعلياً (مثل النظام السابق)
+    if (hasAnyActual || (row.lock && Date.now() - row.lock.timestamp < 10000)) {
+      activeRowsCount++;
+      var statusBadge = isItemDone ? '<span class="badge badge-done">مكتمل</span>' : '<span class="badge badge-prog">قيد التحضير</span>';
 
-    tbodyHtml += '<tr>' +
-      '<td style="direction:ltr; font-weight:bold;">' + escapeHtml(code) + '</td>' +
-      '<td>' + escapeHtml(row.product || '-') + '</td>' +
-      '<td>' + chipsHtml + '</td>' +
-      '<td>' + statusBadge + '</td>' +
-      '</tr>';
+      tbodyHtml += '<tr>' +
+        '<td style="direction:ltr; font-weight:bold;">' + escapeHtml(code) + '</td>' +
+        '<td>' + escapeHtml(row.product || '-') + '</td>' +
+        '<td>' + chipsHtml + '</td>' +
+        '<td>' + statusBadge + '</td>' +
+        '</tr>';
+    }
   });
 
-  document.getElementById('itemsTableBody').innerHTML = tbodyHtml;
+  // 1. عرض العمال الشغالين حالياً
+  var workersArr = Object.keys(activeWorkersMap);
+  var workersListDiv = document.getElementById('activeWorkersList');
+  if (workersArr.length > 0) {
+    workersListDiv.innerHTML = workersArr.map(function(wName) {
+      return '<span class="worker-badge">' + escapeHtml(wName) + '</span>';
+    }).join('');
+  } else {
+    workersListDiv.innerHTML = '<span style="color:var(--muted); font-size:0.8rem;">لا يوجد عمال متواجدين حالياً</span>';
+  }
 
-  // 1. حساب ونسبة الأصناف المنتجات
+  // 2. عرض جدول الأصناف النشطة فقط
+  if (activeRowsCount > 0) {
+    document.getElementById('itemsTableBody').innerHTML = tbodyHtml;
+  } else {
+    document.getElementById('itemsTableBody').innerHTML = '<tr><td colspan="4" class="empty-msg">لم يبدأ أي عامل بالتحضير بعد.. استنى أول مسح باركود من الموبايل!</td></tr>';
+  }
+
+  // 3. حساب ونسبة الأصناف والقطع الكلية
   var itemsPercent = totalItemsCount > 0 ? Math.round((completedItemsCount / totalItemsCount) * 100) : 0;
   document.getElementById('itemsProgText').textContent = itemsPercent + '% (' + completedItemsCount + ' / ' + totalItemsCount + ' صنف)';
   document.getElementById('itemsBarFill').style.width = itemsPercent + '%';
 
-  // 2. حساب ونسبة القطع الكلية
   var qtyPercent = totalQty > 0 ? Math.round((actualQty / totalQty) * 100) : 0;
   document.getElementById('qtyProgText').textContent = qtyPercent + '% (' + actualQty + ' / ' + totalQty + ' قطعة)';
   document.getElementById('qtyBarFill').style.width = qtyPercent + '%';
