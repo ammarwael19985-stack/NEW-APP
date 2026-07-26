@@ -14,6 +14,11 @@
   .drop-zone { border: 2px dashed #b2c8c2; border-radius: 12px; padding: 30px; text-align: center; background: #fafcfb; cursor: pointer; transition: 0.2s; }
   .drop-zone:hover { border-color: var(--primary); background: #f0f7f5; }
   
+  .reopen-box { display: flex; gap: 10px; justify-content: center; align-items: center; margin-top: 20px; padding-top: 20px; border-top: 1px dashed var(--line); }
+  .reopen-box input { padding: 10px 14px; border-radius: 8px; border: 1px solid var(--line); font-size: 1rem; width: 180px; text-align: center; font-weight: bold; }
+  .btn-secondary { background: #4a5568; color: white; border: none; padding: 10px 18px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.95rem; }
+  .btn-secondary:hover { background: #2d3748; }
+
   .code-banner { background: #eef7f4; border: 2px solid var(--primary); padding: 15px 25px; border-radius: 12px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
   .code-num { font-size: 2.8rem; font-weight: 800; color: var(--primary); letter-spacing: 3px; }
   
@@ -32,17 +37,16 @@
   .badge-done { background: #d4edda; color: #155724; }
   .badge-pending { background: #fff3cd; color: #856404; }
   .hidden { display: none !important; }
-  
   .empty-state { text-align: center; padding: 40px; color: #888; font-size: 1.1rem; }
 </style>
 </head>
 <body>
 
 <div class="container">
-  <!-- شاشة رفع ملف جديد -->
+  <!-- شاشة رفع ملف جديد أو العودة لطلبية قديمة -->
   <div class="card" id="uploadCard">
     <h1>BranchPrep Cloud 🖥️</h1>
-    <p style="text-align: center; color: var(--muted);">رفع الطلبية وتوليد كود المتابعة اللحظية للعمال</p>
+    <p style="text-align: center; color: var(--muted);">رفع طلبية جديدة أو فتح متابعة طلبية سابقة</p>
     
     <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
       <div style="font-size: 2.5rem; margin-bottom: 8px;">📁</div>
@@ -50,6 +54,14 @@
       <p style="font-size: 0.85rem; color: #888; margin:0;">يدعم ملفات .xlsx و .xls</p>
       <input type="file" id="fileInput" accept=".xlsx, .xls" style="display:none;" onchange="handleFile(this.files[0])">
     </div>
+    
+    <!-- قسم فتح طلبية سابقة برقم الكود -->
+    <div class="reopen-box">
+      <span style="font-size:0.9rem; font-weight:bold; color:var(--muted);">أو فتح طلبية سابقة بالكود:</span>
+      <input type="number" id="oldCodeInput" placeholder="مثال: 5397" />
+      <button class="btn-secondary" onclick="openExistingOrder()">فتح الطلبية 📂</button>
+    </div>
+
     <div id="status" style="text-align:center; font-weight:bold; margin-top:10px; color:var(--primary);"></div>
   </div>
 
@@ -62,7 +74,7 @@
       </div>
       <div style="display:flex; align-items:center; gap:15px;">
         <div class="code-num" id="orderCodeDisplay">0000</div>
-        <button class="btn-reset" onclick="resetCurrentOrder()">رفع طلبية جديدة 🔄</button>
+        <button class="btn-reset" onclick="resetCurrentOrder()">خروج من الطلبية 🔄</button>
       </div>
     </div>
 
@@ -82,7 +94,7 @@
       </button>
     </div>
 
-    <h3 style="margin-top:25px; border-bottom:2px solid var(--primary); padding-bottom:8px;">الأصناف قيد التحضير حالياً (تظهر تلقائياً عند بدء العمل) ⏱️</h3>
+    <h3 style="margin-top:25px; border-bottom:2px solid var(--primary); padding-bottom:8px;">الأصناف قيد التحضير حالياً ⏱️</h3>
     <table>
       <thead>
         <tr>
@@ -115,6 +127,32 @@ function showDashboard(code) {
   document.getElementById('orderCodeDisplay').textContent = code;
   fetchOrderData(code);
   startLiveMonitoring(code);
+}
+
+// دالة العودة لطلبية سابقة باستخدام الكود
+async function openExistingOrder() {
+  const code = document.getElementById('oldCodeInput').value.trim();
+  if(!code) return alert('برجاء كتابة كود الطلبية أولاً!');
+
+  document.getElementById('status').textContent = 'جاري البحث عن الطلبية...';
+  
+  try {
+    const res = await fetch(`${DB_URL}/orders/${code}.json`);
+    const data = await res.json();
+    
+    if(data && data.items) {
+      document.getElementById('status').textContent = '';
+      currentActiveCode = code;
+      localStorage.setItem('bp_admin_code', code);
+      showDashboard(code);
+    } else {
+      alert('لم يتم العثور على طلبية بهذا الكود! تأكد من الرقم.');
+      document.getElementById('status').textContent = '';
+    }
+  } catch(err) {
+    alert('تعذر الاتصال بالسيرفر!');
+    document.getElementById('status').textContent = '';
+  }
 }
 
 async function fetchOrderData(code) {
@@ -160,12 +198,11 @@ function handleFile(file) {
 
 async function processExcelData(rows) {
   if (rows.length < 2) return alert('الملف فارغ!');
-  document.getElementById('status').textContent = 'جاري معالجة البيانات واستخراج الفروع...';
+  document.getElementById('status').textContent = 'جاري معالجة البيانات واستخرج الفروع...';
   
   const header = rows[0];
   const branchCols = [];
   
-  // 1. حل مشكلة قراءة الفروع: مسح الصف الأول وتحديد أماكن الفروع الفعلية
   for(let c = 2; c < header.length; c++) {
     if(header[c] !== undefined && String(header[c]).trim() !== "") {
       branchCols.push({ name: String(header[c]).trim(), index: c });
@@ -232,13 +269,13 @@ function updateDashboardUI(items) {
 
   let totalTarget = 0;
   let totalActual = 0;
-  let hasVisibleItems = false; // للتأكد هل فيه حاجة ظهرت ولا لأ
+  let hasVisibleItems = false;
 
   Object.keys(items).forEach(barcode => {
     const item = items[barcode];
     let branchDetailsHtml = '';
     let isItemComplete = true;
-    let isBeingPrepared = false; // 2. حل المتابعة الحية: هل تم بدء العمل في هذا الصنف؟
+    let isBeingPrepared = false;
 
     Object.keys(item.branches || {}).forEach(bName => {
       const bData = item.branches[bName];
@@ -250,7 +287,7 @@ function updateDashboardUI(items) {
       totalActual += actual;
 
       if (actual < target) isItemComplete = false;
-      if (bData.actual !== "") isBeingPrepared = true; // العامل كتب رقم هنا
+      if (bData.actual !== "") isBeingPrepared = true;
 
       const isDone = actual >= target && target > 0;
       branchDetailsHtml += `
@@ -260,7 +297,6 @@ function updateDashboardUI(items) {
       `;
     });
 
-    // إخفاء الصنف من الشاشة لو محدش لمسه لسه
     if (!isBeingPrepared) return;
 
     hasVisibleItems = true;
@@ -278,7 +314,6 @@ function updateDashboardUI(items) {
     tbody.appendChild(tr);
   });
 
-  // لو مفيش أصناف اتضربت لسه نعرض رسالة توضيحية
   if (!hasVisibleItems) {
     tbody.innerHTML = '<tr><td colspan="4" class="empty-state">لم يتم بدء التحضير في أي صنف بعد.<br>بمجرد أن يقوم العامل بمسح صنف، سيظهر هنا فوراً.</td></tr>';
   }
@@ -288,14 +323,12 @@ function updateDashboardUI(items) {
   document.getElementById('progressText').textContent = `${percent}% (${totalActual} / ${totalTarget} قطعة)`;
 }
 
-// 3. حل تصدير الإكسيل: جعل الفروع أسفل بعضها
 async function exportToExcel() {
   if (!currentActiveCode) return alert('لا توجد طلبية نشطة!');
   await fetchOrderData(currentActiveCode);
   if (!currentItemsData) return alert('لا توجد بيانات لتصديرها!');
 
   const excelRows = [];
-  // تصميم الهيدر المطلوب
   const header = ['الباركود', 'اسم المنتج', 'الفرع', 'الكمية المطلوبة', 'الكمية المحضرة', 'المحضر'];
   excelRows.push(header);
 
@@ -309,7 +342,6 @@ async function exportToExcel() {
       const actual = bData.actual !== "" ? bData.actual : 0;
       const worker = bData.worker || '';
 
-      // إضافة كل فرع كصف مستقل
       excelRows.push([
         barcode,
         item.product || '',
@@ -329,7 +361,7 @@ async function exportToExcel() {
 }
 
 function resetCurrentOrder() {
-  if(confirm('هل تريد إنهاء متابعة هذه الطلبية ورفع طلبية جديدة؟')) {
+  if(confirm('هل تريد الخروج من شاشة متابعة هذه الطلبية؟ (يمكنك العودة إليها لاحقاً بكتابة الكود)')) {
     localStorage.removeItem('bp_admin_code');
     location.reload();
   }
