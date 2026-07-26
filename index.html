@@ -59,7 +59,6 @@
     padding:6px 12px; font-size:.75rem; color:var(--warn); cursor:pointer;
   }
 
-  /* شريط التحذير الأحمـر للداخل الأخير فقط */
   .worker-warning {
     background:#fbeae5; border:2px solid var(--warn); color:var(--warn);
     padding:12px 14px; border-radius:10px; font-weight:bold; font-size:0.95rem;
@@ -168,6 +167,7 @@
     </div>
   </div>
 </div>
+
 <script>
 var DB_URL = "https://branchprep-default-rtdb.firebaseio.com";
 var workerName = "";
@@ -306,8 +306,8 @@ document.getElementById('scanForm').addEventListener('submit', function(e) {
     document.getElementById('resultBox').style.display = 'block';
     activeBranch = null;
     
-    // تسجيل العامل الأخير المباشر الذي فتح المنتج حالياً
-    announceActiveWorker(code);
+    // تسجيل ملكية المنتج للأول فقط
+    checkAndSetOwner(code);
     renderResult(code, itemsData[code]);
 
     historyListArr.unshift({ name: itemsData[code].product || code, code: code });
@@ -321,19 +321,23 @@ document.getElementById('scanForm').addEventListener('submit', function(e) {
     document.getElementById('workerWarning').style.display = 'none';
     document.getElementById('notFoundBox').innerHTML = 'الباركود ده مش موجود في الطلبية <span class="code">' + escapeHtml(code) + '</span>';
   }
-
   barcodeInput.value = '';
   safeFocus();
 });
 
-// إرسال تسجيل فتح المنتج باسم العامل ووقت الفتح
-function announceActiveWorker(code) {
+// تسجيل صاحب المنتج الأول دون حسم ملكيته للداخل الجديد
+function checkAndSetOwner(code) {
   if (!workerName || !code) return;
-  fetch(DB_URL + '/orders/' + orderCode + '/items/' + code + '/lastViewer.json', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: workerName, timestamp: Date.now() })
-  }).catch(function(e){});
+  
+  var item = itemsData[code];
+  // لو المنتج ملوش صاحب أو صحبه عدى عليه اكتر من 5 دقائق، اجعل العامل الحالي هو الصاحب
+  if (!item || !item.owner || !item.owner.name || (Date.now() - item.owner.timestamp > 300000)) {
+    fetch(DB_URL + '/orders/' + orderCode + '/items/' + code + '/owner.json', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: workerName, timestamp: Date.now() })
+    }).catch(function(e){});
+  }
 }
 
 function renderResult(code, row, focusBranch) {
@@ -342,18 +346,18 @@ function renderResult(code, row, focusBranch) {
   var doneCount = 0;
   var neededCount = 0;
   var rowsHtml = '';
-  var previousWorkers = {};
+  var activeOwnersSet = {};
 
   if (focusBranch !== undefined) activeBranch = focusBranch;
 
-  // 1. تحديد العامل السابق الذي فتح نفس المنتج قبل العامل الحالي (إذا فتح خلال دقيقتين وكان شخص آخر)
-  if (row.lastViewer && row.lastViewer.name && row.lastViewer.name !== workerName) {
-    if (Date.now() - row.lastViewer.timestamp < 120000) {
-      previousWorkers[row.lastViewer.name] = true;
+  // 1. فحص صاحب المنتج الرئيسي (لو غير العامل الحالي وفي دقيقتين ظهر تحذير)
+  if (row.owner && row.owner.name && row.owner.name !== workerName) {
+    if (Date.now() - row.owner.timestamp < 300000) {
+      activeOwnersSet[row.owner.name] = true;
     }
   }
 
-  // 2. إتاحة التحضير للفروع وتحديد باقي العمال
+  // 2. فحص الفروع والعمال السابقين
   branchNames.forEach(function(bName) {
     var bData = (row.branches && row.branches[bName]) ? row.branches[bName] : { target:0, actual:"", worker:"" };
     var qtyNum = Number(bData.target) || 0;
@@ -363,9 +367,8 @@ function renderResult(code, row, focusBranch) {
     total += qtyNum;
     var isZero = qtyNum === 0;
 
-    // تسجيل العمال الآخرين الذين قاموا بتسجيل كميات السابقة
     if (bData.worker && bData.worker.trim() !== "" && bData.worker !== workerName) {
-      previousWorkers[bData.worker] = true;
+      activeOwnersSet[bData.worker] = true;
     }
 
     var actionCell;
@@ -395,12 +398,12 @@ function renderResult(code, row, focusBranch) {
       '</tr>';
   });
 
-  // إظهار الشريط الأحمر للجهاز الأخير فقط (الذي وجد عمالاً قبله)
-  var prevWorkersArr = Object.keys(previousWorkers);
+  // إظهار الشريط للداخل الأخير فقط (الذي لا يملك المنتج)
+  var ownersArr = Object.keys(activeOwnersSet);
   var warnBox = document.getElementById('workerWarning');
-  if (prevWorkersArr.length > 0) {
+  if (ownersArr.length > 0) {
     warnBox.style.display = 'block';
-    warnBox.innerHTML = '⚠️ تنبيه: العامل (<b>' + escapeHtml(prevWorkersArr.join(' و ')) + '</b>) كان متواجد أو شغال على هذا المنتج!';
+    warnBox.innerHTML = '⚠️ تنبيه: العامل (<b>' + escapeHtml(ownersArr.join(' و ')) + '</b>) شغال أو بدأ بتحضير هذا المنتج!';
   } else {
     warnBox.style.display = 'none';
   }
