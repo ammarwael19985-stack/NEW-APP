@@ -76,12 +76,10 @@
     padding:6px 12px;font-size:.75rem;color:var(--warn);cursor:pointer;
   }
 
-  /* شريط التحذير اللحظي البارز */
   .worker-warning {
     background:#fbeae5; border:2px solid var(--warn); color:var(--warn);
     padding:12px 14px; border-radius:10px; font-weight:bold; font-size:0.95rem;
     margin-bottom:14px; text-align:center; display:none;
-    box-shadow: 0 4px 10px rgba(179,69,43,0.15);
   }
 
   .scan-box{background:var(--ink);border-radius:14px;padding:20px;margin-bottom:18px;}
@@ -149,7 +147,7 @@
 <div class="wrap">
   <header>
     <h1>BranchPrep <span style="background:var(--accent);color:#fff;font-size:.62rem;padding:2px 8px;border-radius:10px;vertical-align:middle;">تحضير الفروع</span></h1>
-    <span class="tag" id="statusTag">متصل</span>
+    <span class="tag" id="statusTag">تسجيل الدخول</span>
   </header>
 
   <div id="loginScreen">
@@ -158,7 +156,7 @@
       <p style="color:var(--muted); font-size:0.85rem; margin-bottom:20px;">ادخل اسمك وكود الطلبية من الكمبيوتر للبدء</p>
       <input type="text" id="workerNameInput" placeholder="اسم العامل (مثال: عمار)" />
       <input type="number" id="orderCodeInput" placeholder="كود الطلبية (4 أرقام)" />
-      <button class="file-btn" onclick="loginToOrder()">دخول للتحضير 🚀</button>
+      <button class="file-btn" id="loginBtn" onclick="loginToOrder()">دخول للتحضير 🚀</button>
       <div class="error-msg hidden" id="loginError"></div>
     </div>
   </div>
@@ -167,7 +165,7 @@
     <div class="status-bar">
       <span>العامل: <b id="workerLabel">-</b> | الطلبية: <b id="codeLabel">-</b></span>
       <div>
-        <button onclick="refreshDataLocally()" style="color:var(--accent); margin-left:8px;">تحديث 🔄</button>
+        <button onclick="loginToOrder(true)" style="color:var(--accent); margin-left:8px;">تحديث 🔄</button>
         <button id="logoutBtn" onclick="logout()">خروج 🚪</button>
       </div>
     </div>
@@ -215,6 +213,7 @@ const notFoundBox = document.getElementById('notFoundBox');
 const historyBox = document.getElementById('historyBox');
 const historyList = document.getElementById('historyList');
 const workerWarning = document.getElementById('workerWarning');
+const loginBtn = document.getElementById('loginBtn');
 
 barcodeInput.addEventListener('click', function() {
   this.removeAttribute('inputmode');
@@ -224,19 +223,7 @@ window.addEventListener('DOMContentLoaded', () => {
   if (workerName && orderCode) {
     document.getElementById('workerNameInput').value = workerName;
     document.getElementById('orderCodeInput').value = orderCode;
-    
-    workerLabel.textContent = workerName;
-    codeLabel.textContent = orderCode;
-    
-    loginScreen.classList.add('hidden');
-    scanScreen.classList.remove('hidden');
-    statusTag.textContent = 'متصل';
-    
     loginToOrder(true);
-  } else {
-    loginScreen.classList.remove('hidden');
-    scanScreen.classList.add('hidden');
-    statusTag.textContent = 'تسجيل دخول';
   }
 });
 
@@ -246,16 +233,19 @@ async function loginToOrder(isAuto = false) {
 
   if(!wName || !oCode) {
     showLoginError('برجاء كتابة الاسم وكود الطلبية المكون من 4 أرقام');
-    scanScreen.classList.add('hidden');
-    loginScreen.classList.remove('hidden');
     return;
   }
 
   loginError.classList.add('hidden');
+  loginBtn.textContent = 'جاري الاتصال... ⏳';
+  loginBtn.disabled = true;
   
   try {
     const res = await fetch(`${DB_URL}/orders/${oCode}.json`);
     const data = await res.json();
+
+    loginBtn.textContent = 'دخول للتحضير 🚀';
+    loginBtn.disabled = false;
 
     if (data && data.items) {
       workerName = wName;
@@ -263,4 +253,253 @@ async function loginToOrder(isAuto = false) {
       itemsData = data.items;
 
       localStorage.setItem('bp_worker', workerName);
-      localStorage.
+      localStorage.setItem('bp_code', orderCode);
+
+      workerLabel.textContent = workerName;
+      codeLabel.textContent = orderCode;
+
+      const branchesSet = new Set();
+      Object.values(itemsData).forEach(item => {
+        if(item.branches) {
+          Object.keys(item.branches).forEach(b => branchesSet.add(b));
+        }
+      });
+      branchNames = Array.from(branchesSet);
+
+      loginScreen.classList.add('hidden');
+      scanScreen.classList.remove('hidden');
+      statusTag.textContent = 'جاهز للمسح';
+
+      startLiveSync();
+      safeFocus();
+    } else {
+      if(isAuto) localStorage.removeItem('bp_code');
+      showLoginError('كود الطلبية غير صحيح أو تم إنهاؤها من الكمبيوتر!');
+      loginScreen.classList.remove('hidden');
+      scanScreen.classList.add('hidden');
+    }
+  } catch(err) {
+    loginBtn.textContent = 'دخول للتحضير 🚀';
+    loginBtn.disabled = false;
+    showLoginError('تعذر الاتصال بالسيرفر! تأكد من شبكة الإنترنت.');
+  }
+}
+
+function showLoginError(msg) {
+  loginError.textContent = msg;
+  loginError.classList.remove('hidden');
+}
+
+function logout() {
+  if(confirm('هل تريد الخروج؟')) {
+    localStorage.removeItem('bp_worker');
+    localStorage.removeItem('bp_code');
+    location.reload();
+  }
+}
+
+function startLiveSync() {
+  const es = new EventSource(`${DB_URL}/orders/${orderCode}/items.json`);
+  es.onmessage = (e) => {
+    const newItems = JSON.parse(e.data);
+    if(newItems) {
+      itemsData = newItems;
+      if(currentCode && itemsData[currentCode]) {
+        renderResult(currentCode, itemsData[currentCode], activeBranch);
+      }
+    }
+  };
+}
+
+function safeFocus() {
+  setTimeout(() => {
+    barcodeInput.setAttribute('inputmode', 'none');
+    try {
+      barcodeInput.focus({ preventScroll: true });
+    } catch (e) {
+      barcodeInput.focus();
+    }
+  }, 100);
+}
+
+document.getElementById('scanForm').addEventListener('submit', function(e){
+  e.preventDefault();
+  const code = barcodeInput.value.trim();
+  if(!code) return;
+
+  if(code === currentCode && itemsData[code]){
+    if(activeBranch){
+      let currentVal = Number(itemsData[code].branches[activeBranch] ? itemsData[code].branches[activeBranch].actual : 0) || 0;
+      updateBranchActual(code, activeBranch, currentVal + 1);
+    }
+    barcodeInput.value = '';
+    safeFocus();
+    return;
+  }
+
+  placeholder.classList.add('hidden');
+
+  if(itemsData[code]){
+    notFoundBox.classList.add('hidden');
+    resultBox.classList.remove('hidden');
+    activeBranch = null;
+    renderResult(code, itemsData[code]);
+
+    history.unshift({name: itemsData[code].product, code: code});
+    history = history.slice(0, 8);
+    renderHistory();
+  } else {
+    currentCode = null;
+    activeBranch = null;
+    resultBox.classList.add('hidden');
+    notFoundBox.classList.remove('hidden');
+    workerWarning.style.display = 'none';
+    notFoundBox.innerHTML = 'الباركود ده مش موجود في الطلبية <span class="code">' + escapeHtml(code) + '</span>';
+  }
+
+  barcodeInput.value = '';
+  safeFocus();
+});
+
+function renderResult(code, row, focusBranch){
+  currentCode = code;
+  let total = 0;
+  let doneCount = 0;
+  let neededCount = 0;
+  let rowsHtml = '';
+  let otherWorkersSet = new Set();
+
+  if(focusBranch !== undefined) activeBranch = focusBranch;
+
+  branchNames.forEach(function(bName){
+    const bData = (row.branches && row.branches[bName]) ? row.branches[bName] : { target:0, actual:"", worker:"" };
+    const qtyNum = Number(bData.target) || 0;
+    const actualVal = bData.actual;
+    const actualNum = Number(actualVal) || 0;
+    
+    total += qtyNum;
+    const isZero = qtyNum === 0;
+
+    if(bData.worker && bData.worker.trim() !== "" && bData.worker !== workerName) {
+      otherWorkersSet.add(bData.worker);
+    }
+
+    let actionCell;
+    let doneClass = '';
+    let selectedClass = '';
+
+    if(isZero){
+      actionCell = '<td class="zero-note">لا يحتاج</td><td></td>';
+    } else {
+      neededCount++;
+      const isComplete = actualVal !== '' && actualNum >= qtyNum;
+      if(isComplete) { doneCount++; doneClass = ' branch-done'; }
+      if(bName === activeBranch) selectedClass = ' selected';
+
+      actionCell =
+        '<td class="actual"><input type="number" class="actual-input" data-branch="' + escapeHtml(bName) + '" placeholder="0" value="' + escapeHtml(String(actualVal)) + '" onclick="event.stopPropagation();" /></td>' +
+        '<td class="check"><button type="button" class="fill-btn" data-branch="' + escapeHtml(bName) + '">⚡</button></td>';
+    }
+
+    const zeroClass = isZero ? ' zero' : '';
+    rowsHtml += '<tr class="' + (zeroClass + doneClass + selectedClass).trim() + '" data-branch="' + escapeHtml(bName) + '">' +
+      '<td>' + escapeHtml(bName) + (bData.worker ? ` <small style="color:#217346; font-weight:bold;">(${escapeHtml(bData.worker)})</small>` : '') + '</td>' +
+      '<td class="qty">' + qtyNum + '</td>' +
+      actionCell +
+      '</tr>';
+  });
+
+  if(otherWorkersSet.size > 0) {
+    const namesList = Array.from(otherWorkersSet).join(' و ');
+    workerWarning.style.display = 'block';
+    workerWarning.innerHTML = `⚠️ تنبيه: العامل (<b>${namesList}</b>) شغال أو قام بتحضير أجزء من هذا المنتج!`;
+  } else {
+    workerWarning.style.display = 'none';
+  }
+
+  rowsHtml += '<tr class="total-row"><td>الإجمالي</td><td class="qty">' + total + '</td><td></td><td></td></tr>';
+
+  resultBox.innerHTML =
+    '<div class="pname">' + escapeHtml(row.product || code) + '</div>' +
+    (row.product ? '<div class="pbarcode">' + escapeHtml(code) + '</div>' : '') +
+    '<div class="progress-note">اتحضر ' + doneCount + ' من ' + neededCount + ' فرع محتاج تحضير — دوس على الفرع واضرب الباركود لتسجيله، أو (⚡) للملء.</div>' +
+    '<table class="branch-table"><tbody>' + rowsHtml + '</tbody></table>';
+}
+
+async function updateBranchActual(code, branch, val) {
+  if(!code || !branch) return;
+  
+  if(!itemsData[code].branches[branch]) {
+    itemsData[code].branches[branch] = { target:0, actual:"", worker:"" };
+  }
+  
+  itemsData[code].branches[branch].actual = val;
+  itemsData[code].branches[branch].worker = workerName;
+
+  renderResult(code, itemsData[code], branch);
+
+  try {
+    await fetch(`${DB_URL}/orders/${orderCode}/items/${code}/branches/${branch}.json`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ actual: val, worker: workerName })
+    });
+  } catch(e) {
+    console.error("Firebase update failed", e);
+  }
+}
+
+resultBox.addEventListener('click', function(e){
+  const btn = e.target.closest('.fill-btn');
+  if(!btn || !currentCode) return;
+  e.stopPropagation();
+
+  const branch = btn.getAttribute('data-branch');
+  if(!branch) return;
+
+  const targetQty = itemsData[currentCode].branches[branch] ? itemsData[currentCode].branches[branch].target : 0;
+  updateBranchActual(currentCode, branch, targetQty);
+  safeFocus();
+});
+
+resultBox.addEventListener('click', function(e){
+  const tr = e.target.closest('tr[data-branch]');
+  if(!tr || !currentCode) return;
+  if(tr.classList.contains('zero') || e.target.classList.contains('actual-input') || e.target.closest('.fill-btn')) return;
+
+  const branch = tr.getAttribute('data-branch');
+  if(!branch) return;
+  
+  activeBranch = branch;
+  renderResult(currentCode, itemsData[currentCode], branch);
+  safeFocus();
+});
+
+resultBox.addEventListener('change', function(e){
+  const input = e.target.closest('.actual-input');
+  if(!input || !currentCode) return;
+  const branch = input.getAttribute('data-branch');
+  if(!branch) return;
+
+  updateBranchActual(currentCode, branch, input.value);
+});
+
+function renderHistory(){
+  if(history.length === 0){
+    historyBox.classList.add('hidden');
+    return;
+  }
+  historyBox.classList.remove('hidden');
+  historyList.innerHTML = history.map(function(h){
+    return '<div class="history-item"><span class="name">' + escapeHtml(h.name) + '</span><span class="code">' + escapeHtml(h.code) + '</span></div>';
+  }).join('');
+}
+
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str === undefined || str === null ? '' : String(str);
+  return div.innerHTML;
+}
+</script>
+</body>
+</html>
