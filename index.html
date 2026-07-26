@@ -80,6 +80,7 @@
     background:#fbeae5; border:2px solid var(--warn); color:var(--warn);
     padding:12px 14px; border-radius:10px; font-weight:bold; font-size:0.95rem;
     margin-bottom:14px; text-align:center; display:none;
+    box-shadow: 0 4px 10px rgba(179,69,43,0.15);
   }
 
   .scan-box{background:var(--ink);border-radius:14px;padding:20px;margin-bottom:18px;}
@@ -147,7 +148,7 @@
 <div class="wrap">
   <header>
     <h1>BranchPrep <span style="background:var(--accent);color:#fff;font-size:.62rem;padding:2px 8px;border-radius:10px;vertical-align:middle;">تحضير الفروع</span></h1>
-    <span class="tag" id="statusTag">تسجيل الدخول</span>
+    <span class="tag" id="statusTag">متصل</span>
   </header>
 
   <div id="loginScreen">
@@ -298,12 +299,13 @@ function logout() {
   }
 }
 
+// مزامنة لحظية فائقة السرعة
 function startLiveSync() {
-  const es = new EventSource(`${DB_URL}/orders/${orderCode}/items.json`);
+  const es = new EventSource(`${DB_URL}/orders/${orderCode}.json`);
   es.onmessage = (e) => {
-    const newItems = JSON.parse(e.data);
-    if(newItems) {
-      itemsData = newItems;
+    const data = JSON.parse(e.data);
+    if(data && data.items) {
+      itemsData = data.items;
       if(currentCode && itemsData[currentCode]) {
         renderResult(currentCode, itemsData[currentCode], activeBranch);
       }
@@ -343,6 +345,9 @@ document.getElementById('scanForm').addEventListener('submit', function(e){
     notFoundBox.classList.add('hidden');
     resultBox.classList.remove('hidden');
     activeBranch = null;
+    
+    // إعلان تواجد العامل فوراً على هذا المنتج
+    announceActiveWorker(code);
     renderResult(code, itemsData[code]);
 
     history.unshift({name: itemsData[code].product, code: code});
@@ -361,6 +366,17 @@ document.getElementById('scanForm').addEventListener('submit', function(e){
   safeFocus();
 });
 
+// إشعار السيرفر بوجود العامل بمجرد مسح الباركود
+async function announceActiveWorker(code) {
+  try {
+    await fetch(`${DB_URL}/orders/${orderCode}/items/${code}/currentWorker.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: workerName, timestamp: Date.now() })
+    });
+  } catch(e){}
+}
+
 function renderResult(code, row, focusBranch){
   currentCode = code;
   let total = 0;
@@ -371,6 +387,15 @@ function renderResult(code, row, focusBranch){
 
   if(focusBranch !== undefined) activeBranch = focusBranch;
 
+  // 1. فحص العامل المتواجد حالياً على نفس الصفحة
+  if(row.currentWorker && row.currentWorker.name && row.currentWorker.name !== workerName) {
+    // التنبيه يظل نشطاً لمدة 10 دقائق من مسح الباركود
+    if(Date.now() - row.currentWorker.timestamp < 600000) {
+      otherWorkersSet.add(row.currentWorker.name);
+    }
+  }
+
+  // 2. فحص العمال الذين سجلوا تعديلات سابقة
   branchNames.forEach(function(bName){
     const bData = (row.branches && row.branches[bName]) ? row.branches[bName] : { target:0, actual:"", worker:"" };
     const qtyNum = Number(bData.target) || 0;
@@ -409,10 +434,11 @@ function renderResult(code, row, focusBranch){
       '</tr>';
   });
 
+  // إظهار التنبيه فوراً بدون Refresh
   if(otherWorkersSet.size > 0) {
     const namesList = Array.from(otherWorkersSet).join(' و ');
     workerWarning.style.display = 'block';
-    workerWarning.innerHTML = `⚠️ تنبيه: العامل (<b>${namesList}</b>) شغال أو قام بتحضير أجزء من هذا المنتج!`;
+    workerWarning.innerHTML = `⚠️ تنبيه: العامل (<b>${namesList}</b>) شغال أو متواجد على هذا المنتج حالياً!`;
   } else {
     workerWarning.style.display = 'none';
   }
