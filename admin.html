@@ -32,6 +32,8 @@
   .badge-done { background: #d4edda; color: #155724; }
   .badge-pending { background: #fff3cd; color: #856404; }
   .hidden { display: none !important; }
+  
+  .empty-state { text-align: center; padding: 40px; color: #888; font-size: 1.1rem; }
 </style>
 </head>
 <body>
@@ -80,7 +82,7 @@
       </button>
     </div>
 
-    <h3 style="margin-top:25px; border-bottom:2px solid var(--primary); padding-bottom:8px;">تفاصيل حركة التحضير اللحظية 📊</h3>
+    <h3 style="margin-top:25px; border-bottom:2px solid var(--primary); padding-bottom:8px;">الأصناف قيد التحضير حالياً (تظهر تلقائياً عند بدء العمل) ⏱️</h3>
     <table>
       <thead>
         <tr>
@@ -103,22 +105,15 @@ let currentActiveCode = localStorage.getItem('bp_admin_code') || null;
 let currentItemsData = null;
 let eventSource = null;
 
-// تحميل البيانات فور فتح الصفحة إذا كان هناك كود سابق
 window.addEventListener('DOMContentLoaded', () => {
-  if (currentActiveCode) {
-    showDashboard(currentActiveCode);
-  }
+  if (currentActiveCode) showDashboard(currentActiveCode);
 });
 
 function showDashboard(code) {
   document.getElementById('uploadCard').classList.add('hidden');
   document.getElementById('liveDashboard').classList.remove('hidden');
   document.getElementById('orderCodeDisplay').textContent = code;
-  
-  // جلب البيانات فوراً لضمان عدم بقاء الشاشة فارغة
   fetchOrderData(code);
-  
-  // بدء الاستماع اللحظي للتغيرات
   startLiveMonitoring(code);
 }
 
@@ -165,22 +160,32 @@ function handleFile(file) {
 
 async function processExcelData(rows) {
   if (rows.length < 2) return alert('الملف فارغ!');
-
-  document.getElementById('status').textContent = 'جاري رفع البيانات إلى السحابة...';
+  document.getElementById('status').textContent = 'جاري معالجة البيانات واستخراج الفروع...';
+  
   const header = rows[0];
-  const branchNames = header.slice(2);
+  const branchCols = [];
+  
+  // 1. حل مشكلة قراءة الفروع: مسح الصف الأول وتحديد أماكن الفروع الفعلية
+  for(let c = 2; c < header.length; c++) {
+    if(header[c] !== undefined && String(header[c]).trim() !== "") {
+      branchCols.push({ name: String(header[c]).trim(), index: c });
+    }
+  }
+
+  if(branchCols.length === 0) return alert('لم يتم العثور على فروع في الملف!');
+
   const items = {};
   
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i];
     const barcode = String(row[0] || '').trim();
     const productName = String(row[1] || '').trim();
-    if (!barcode) continue;
+    if (!barcode || barcode === 'undefined') continue;
     
     const branches = {};
-    branchNames.forEach((bName, idx) => {
-      const qty = Number(row[idx + 2]) || 0;
-      if (qty > 0) branches[bName] = { target: qty, actual: "", worker: "" };
+    branchCols.forEach(col => {
+      const qty = Number(row[col.index]) || 0;
+      if (qty > 0) branches[col.name] = { target: qty, actual: "", worker: "" };
     });
     
     if (Object.keys(branches).length > 0) {
@@ -189,6 +194,7 @@ async function processExcelData(rows) {
   }
 
   const orderCode = Math.floor(1000 + Math.random() * 9000).toString();
+  document.getElementById('status').textContent = `تم العثور على ${branchCols.length} فروع.. جاري الرفع!`;
   
   try {
     const res = await fetch(`${DB_URL}/orders/${orderCode}.json`, {
@@ -210,8 +216,6 @@ async function processExcelData(rows) {
 
 function startLiveMonitoring(orderCode) {
   if(eventSource) eventSource.close();
-  
-  // الاستماع المباشر للتحديثات
   eventSource = new EventSource(`${DB_URL}/orders/${orderCode}.json`);
   eventSource.onmessage = function(e) {
     const data = JSON.parse(e.data);
@@ -228,22 +232,25 @@ function updateDashboardUI(items) {
 
   let totalTarget = 0;
   let totalActual = 0;
+  let hasVisibleItems = false; // للتأكد هل فيه حاجة ظهرت ولا لأ
 
   Object.keys(items).forEach(barcode => {
     const item = items[barcode];
     let branchDetailsHtml = '';
     let isItemComplete = true;
+    let isBeingPrepared = false; // 2. حل المتابعة الحية: هل تم بدء العمل في هذا الصنف؟
 
     Object.keys(item.branches || {}).forEach(bName => {
       const bData = item.branches[bName];
       const target = Number(bData.target) || 0;
-      const actual = Number(bData.actual) || 0;
+      const actual = bData.actual !== "" ? Number(bData.actual) : 0;
       const worker = bData.worker ? `(${bData.worker})` : '';
 
       totalTarget += target;
       totalActual += actual;
 
       if (actual < target) isItemComplete = false;
+      if (bData.actual !== "") isBeingPrepared = true; // العامل كتب رقم هنا
 
       const isDone = actual >= target && target > 0;
       branchDetailsHtml += `
@@ -253,6 +260,10 @@ function updateDashboardUI(items) {
       `;
     });
 
+    // إخفاء الصنف من الشاشة لو محدش لمسه لسه
+    if (!isBeingPrepared) return;
+
+    hasVisibleItems = true;
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td style="font-family:monospace; font-weight:bold;">${barcode}</td>
@@ -267,51 +278,47 @@ function updateDashboardUI(items) {
     tbody.appendChild(tr);
   });
 
+  // لو مفيش أصناف اتضربت لسه نعرض رسالة توضيحية
+  if (!hasVisibleItems) {
+    tbody.innerHTML = '<tr><td colspan="4" class="empty-state">لم يتم بدء التحضير في أي صنف بعد.<br>بمجرد أن يقوم العامل بمسح صنف، سيظهر هنا فوراً.</td></tr>';
+  }
+
   const percent = totalTarget > 0 ? Math.min(100, Math.round((totalActual / totalTarget) * 100)) : 0;
   document.getElementById('progressBarFill').style.width = `${percent}%`;
   document.getElementById('progressText').textContent = `${percent}% (${totalActual} / ${totalTarget} قطعة)`;
 }
 
-// دالة تصدير ملف الإكسيل النهائى
+// 3. حل تصدير الإكسيل: جعل الفروع أسفل بعضها
 async function exportToExcel() {
   if (!currentActiveCode) return alert('لا توجد طلبية نشطة!');
-
-  // إعادة التأكد من جلب أحدث بيانات قبل التصدير
   await fetchOrderData(currentActiveCode);
-
   if (!currentItemsData) return alert('لا توجد بيانات لتصديرها!');
 
-  const sampleItem = Object.values(currentItemsData)[0];
-  if (!sampleItem || !sampleItem.branches) return alert('بيانات الطلبية غير مكتملة!');
-
-  const branchNames = Object.keys(sampleItem.branches);
-
   const excelRows = [];
-  const header = ['الباركود', 'اسم المنتج'];
-  
-  branchNames.forEach(b => header.push(`مطلوب (${b})`));
-  branchNames.forEach(b => header.push(`محضر (${b})`));
-  branchNames.forEach(b => header.push(`المحضر (${b})`));
-  
+  // تصميم الهيدر المطلوب
+  const header = ['الباركود', 'اسم المنتج', 'الفرع', 'الكمية المطلوبة', 'الكمية المحضرة', 'المحضر'];
   excelRows.push(header);
 
   Object.keys(currentItemsData).forEach(barcode => {
     const item = currentItemsData[barcode];
-    const row = [barcode, item.product || ''];
+    const branches = item.branches || {};
 
-    branchNames.forEach(b => {
-      row.push(item.branches[b] ? item.branches[b].target : 0);
+    Object.keys(branches).forEach(bName => {
+      const bData = branches[bName];
+      const target = bData.target || 0;
+      const actual = bData.actual !== "" ? bData.actual : 0;
+      const worker = bData.worker || '';
+
+      // إضافة كل فرع كصف مستقل
+      excelRows.push([
+        barcode,
+        item.product || '',
+        bName,
+        target,
+        actual,
+        worker
+      ]);
     });
-
-    branchNames.forEach(b => {
-      row.push(item.branches[b] ? (item.branches[b].actual !== "" ? item.branches[b].actual : 0) : 0);
-    });
-
-    branchNames.forEach(b => {
-      row.push(item.branches[b] ? (item.branches[b].worker || '') : '');
-    });
-
-    excelRows.push(row);
   });
 
   const worksheet = XLSX.utils.aoa_to_sheet(excelRows);
