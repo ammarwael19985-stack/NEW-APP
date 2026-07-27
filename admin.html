@@ -22,7 +22,6 @@
   .code-banner { background: #eef7f4; border: 2px solid var(--primary); padding: 15px 25px; border-radius: 12px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
   .code-num { font-size: 2.8rem; font-weight: 800; color: var(--primary); letter-spacing: 3px; }
   
-  /* مربع العمال المتواجدين حالياً */
   .workers-box {
     background: #faf8f2; border: 1px solid #dcd6c9; border-radius: 12px;
     padding: 12px 20px; margin-bottom: 20px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
@@ -34,7 +33,6 @@
   }
   .worker-badge::before { content: '●'; color: #28a745; font-size: 0.8rem; }
 
-  /* شبكة كروت مؤشرات إنجاز الأصناف والقطع */
   .progress-grid {
     display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px;
   }
@@ -68,7 +66,6 @@
 <body>
 
 <div class="container">
-  <!-- الشاشة الأولى: رفع ملف أو كتابة كود -->
   <div class="card" id="uploadCard">
     <h1>BranchPrep Cloud 🖥️</h1>
     <p style="text-align: center; color: var(--muted);">رفع طلبية جديدة أو فتح متابعة طلبية سابقة</p>
@@ -89,9 +86,7 @@
     <div id="status" style="text-align:center; font-weight:bold; margin-top:10px; color:var(--primary);"></div>
   </div>
 
-  <!-- الشاشة الثانية: المراقبة الحية -->
   <div id="liveDashboard" class="card hidden">
-    <!-- كود الطلبية -->
     <div class="code-banner">
       <div>
         <div style="font-weight:bold; color:var(--muted);">كود التحضير النشط حالياً:</div>
@@ -103,7 +98,6 @@
       </div>
     </div>
 
-    <!-- أسماء العمال المتواجدين حياً بالتحضير -->
     <div class="workers-box">
       <span style="font-weight:bold; font-size:0.9rem; color:var(--text);">👷 العمال النشطين حالياً:</span>
       <div id="workersListContainer" style="display:flex; gap:8px; flex-wrap:wrap;">
@@ -111,17 +105,14 @@
       </div>
     </div>
 
-    <!-- زرار التصدير ورأس المؤشرات -->
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
       <h3 style="margin:0; font-size:1.05rem;">مؤشرات إنجاز الأصناف والقطع 📊</h3>
-      <button class="btn-export" onclick="exportToExcel()">
+      <button class="btn-export" id="exportBtn" onclick="exportToExcel()">
         📊 تصدير النتيجة إلى الإكسيل
       </button>
     </div>
 
-    <!-- شبكة المؤشرات الـ 4 المقسمة بالتفصيل -->
     <div class="progress-grid">
-      <!-- 1. الأصناف المسحوبة/النشطة (التي بدأ العمل عليها) -->
       <div class="prog-card">
         <div class="p-title">
           <span>📦 أصناف بدأ تحضيرها:</span>
@@ -132,7 +123,6 @@
         </div>
       </div>
 
-      <!-- 2. أصناف مكتملة التحضير -->
       <div class="prog-card">
         <div class="p-title">
           <span>✅ أصناف مكتملة 100%:</span>
@@ -143,7 +133,6 @@
         </div>
       </div>
 
-      <!-- 3. أصناف قيد التحضير (غير مكتملة) -->
       <div class="prog-card">
         <div class="p-title">
           <span>⏳ أصناف قيد التحضير:</span>
@@ -154,7 +143,6 @@
         </div>
       </div>
 
-      <!-- 4. إجمالي نسبة القطع الكلية -->
       <div class="prog-card">
         <div class="p-title">
           <span>🧩 إجمالي القطع الكلية:</span>
@@ -165,6 +153,7 @@
         </div>
       </div>
     </div>
+
     <h3 style="margin-top:20px; border-bottom:2px solid var(--primary); padding-bottom:8px;">الأصناف قيد التحضير حالياً ⏱️</h3>
     <table>
       <thead>
@@ -230,10 +219,12 @@ async function fetchOrderData(code) {
     const data = await res.json();
     if (data) {
       updateDashboardUI(data);
+      return data;
     }
   } catch(err) {
     console.error("Error fetching order:", err);
   }
+  return null;
 }
 
 const dropZone = document.getElementById('dropZone');
@@ -338,10 +329,10 @@ function updateDashboardUI(orderData) {
   const tbody = document.getElementById('itemsTableBody');
   tbody.innerHTML = '';
 
-  let totalItemsCount = 0;       // إجمالي الأصناف بالطلب
-  let startedItemsCount = 0;     // أصناف بدأ تحضيرها (عليها عمل)
-  let completedItemsCount = 0;   // أصناف مكتملة 100%
-  let pendingItemsCount = 0;     // أصناف قيد التحضير (بدأت ولم تكتمل)
+  let totalItemsCount = 0;       
+  let startedItemsCount = 0;     
+  let completedItemsCount = 0;   
+  let pendingItemsCount = 0;     
 
   let totalTargetQty = 0;
   let totalActualQty = 0;
@@ -349,7 +340,6 @@ function updateDashboardUI(orderData) {
 
   const activeWorkersMap = {};
 
-  // 1. تتبع العمال النشطين
   Object.keys(sessions).forEach(sKey => {
     const sess = sessions[sKey];
     if (sess && sess.name && sess.timestamp) {
@@ -392,7 +382,6 @@ function updateDashboardUI(orderData) {
       `;
     });
 
-    // تصنيف حالات الأصناف الثلاثة
     if (isBeingPrepared) {
       startedItemsCount++;
       if (isItemComplete) {
@@ -419,7 +408,6 @@ function updateDashboardUI(orderData) {
     tbody.appendChild(tr);
   });
 
-  // عرض أسماء العمال النشطين
   const workersArr = Object.keys(activeWorkersMap);
   const workersContainer = document.getElementById('workersListContainer');
   if (workersArr.length > 0) {
@@ -432,64 +420,79 @@ function updateDashboardUI(orderData) {
     tbody.innerHTML = '<tr><td colspan="4" class="empty-state">لم يتم بدء التحضير في أي صنف بعد.<br>بمجرد أن يقوم العامل بمسح صنف، سيظهر هنا فوراً.</td></tr>';
   }
 
-  // --- تحديث المؤشرات الـ 4 ---
-  
-  // 1. الأصناف التي تم العمل عليها
   const startedPercent = totalItemsCount > 0 ? Math.round((startedItemsCount / totalItemsCount) * 100) : 0;
   document.getElementById('startedItemsText').textContent = `${startedItemsCount} / ${totalItemsCount} صنف (${startedPercent}%)`;
   document.getElementById('startedItemsBar').style.width = `${startedPercent}%`;
 
-  // 2. الأصناف المكتملة 100%
   const completedPercent = totalItemsCount > 0 ? Math.round((completedItemsCount / totalItemsCount) * 100) : 0;
   document.getElementById('completedItemsText').textContent = `${completedItemsCount} / ${totalItemsCount} صنف (${completedPercent}%)`;
   document.getElementById('completedItemsBar').style.width = `${completedPercent}%`;
 
-  // 3. الأصناف قيد التحضير (غير المكتملة)
   const pendingPercent = startedItemsCount > 0 ? Math.round((pendingItemsCount / startedItemsCount) * 100) : 0;
   document.getElementById('pendingItemsText').textContent = `${pendingItemsCount} صنف`;
   document.getElementById('pendingItemsBar').style.width = `${pendingPercent}%`;
 
-  // 4. إجمالي نسبة القطع الكلية
   const totalQtyPercent = totalTargetQty > 0 ? Math.min(100, Math.round((totalActualQty / totalTargetQty) * 100)) : 0;
   document.getElementById('totalQtyText').textContent = `${totalQtyPercent}% (${totalActualQty} / ${totalTargetQty})`;
   document.getElementById('totalQtyBar').style.width = `${totalQtyPercent}%`;
 }
 
+// دالة تصدير الإكسيل المصلحة: تجلب أحدث كميات حقيقية بالكامل قبل التحميل
 async function exportToExcel() {
   if (!currentActiveCode) return alert('لا توجد طلبية نشطة!');
-  await fetchOrderData(currentActiveCode);
-  if (!currentItemsData) return alert('لا توجد بيانات لتصديرها!');
-
-  const excelRows = [];
-  const header = ['الباركود', 'اسم المنتج', 'الفرع', 'الكمية المطلوبة', 'الكمية المحضرة', 'المحضر'];
-  excelRows.push(header);
-
-  Object.keys(currentItemsData).forEach(barcode => {
-    const item = currentItemsData[barcode];
-    const branches = item.branches || {};
-
-    Object.keys(branches).forEach(bName => {
-      const bData = branches[bName];
-      const target = bData.target || 0;
-      const actual = bData.actual !== "" ? bData.actual : 0;
-      const worker = bData.worker || '';
-
-      excelRows.push([
-        barcode,
-        item.product || '',
-        bName,
-        target,
-        actual,
-        worker
-      ]);
-    });
-  });
-
-  const worksheet = XLSX.utils.aoa_to_sheet(excelRows);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, "تقرير التحضير");
   
-  XLSX.writeFile(workbook, `تقرير_طلبية_${currentActiveCode}.xlsx`);
+  const btn = document.getElementById('exportBtn');
+  btn.textContent = "⏳ جاري جلب أحدث البيانات للتصدير...";
+  btn.disabled = true;
+
+  try {
+    const freshData = await fetchOrderData(currentActiveCode);
+    const items = (freshData && freshData.items) ? freshData.items : currentItemsData;
+
+    if (!items) {
+      alert('لا توجد بيانات لتصديرها!');
+      btn.textContent = "📊 تصدير النتيجة إلى الإكسيل";
+      btn.disabled = false;
+      return;
+    }
+
+    const excelRows = [];
+    const header = ['الباركود', 'اسم المنتج', 'الفرع', 'الكمية المطلوبة', 'الكمية المحضرة', 'المحضر'];
+    excelRows.push(header);
+
+    Object.keys(items).forEach(barcode => {
+      const item = items[barcode];
+      const branches = item.branches || {};
+
+      Object.keys(branches).forEach(bName => {
+        const bData = branches[bName];
+        const target = bData.target || 0;
+        // قراءة الكمية الفعلية المحضرة بدقة
+        const actual = (bData.actual !== "" && bData.actual !== undefined) ? Number(bData.actual) : 0;
+        const worker = bData.worker || '';
+
+        excelRows.push([
+          barcode,
+          item.product || '',
+          bName,
+          target,
+          actual,
+          worker
+        ]);
+      });
+    });
+
+    const worksheet = XLSX.utils.aoa_to_sheet(excelRows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "تقرير التحضير");
+    
+    XLSX.writeFile(workbook, `تقرير_طلبية_${currentActiveCode}.xlsx`);
+  } catch(err) {
+    alert("حدث خطأ أثناء إعداد التقرير، أعد المحاولة!");
+  }
+
+  btn.textContent = "📊 تصدير النتيجة إلى الإكسيل";
+  btn.disabled = false;
 }
 
 function resetCurrentOrder() {
