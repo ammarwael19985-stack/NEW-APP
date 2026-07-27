@@ -288,7 +288,6 @@ async function processExcelData(rows) {
       items[barcode] = { product: productName, branches: branches };
     }
   }
-
   const orderCode = Math.floor(1000 + Math.random() * 9000).toString();
   document.getElementById('status').textContent = `تم العثور على ${branchCols.length} فروع.. جاري الرفع!`;
   
@@ -437,7 +436,7 @@ function updateDashboardUI(orderData) {
   document.getElementById('totalQtyBar').style.width = `${totalQtyPercent}%`;
 }
 
-// دالة تصدير الإكسيل المصلحة: تجلب أحدث كميات حقيقية بالكامل قبل التحميل
+// دالة تصدير الإكسيل المحدثة بتضمين عمود "حالة التحضير" تلقائياً
 async function exportToExcel() {
   if (!currentActiveCode) return alert('لا توجد طلبية نشطة!');
   
@@ -457,7 +456,8 @@ async function exportToExcel() {
     }
 
     const excelRows = [];
-    const header = ['الباركود', 'اسم المنتج', 'الفرع', 'الكمية المطلوبة', 'الكمية المحضرة', 'المحضر'];
+    // إضافة عمود حالة التحضير الجديد في الهيدر
+    const header = ['الباركود', 'اسم المنتج', 'الفرع', 'الكمية المطلوبة', 'الكمية المحضرة', 'حالة التحضير', 'المحضر'];
     excelRows.push(header);
 
     Object.keys(items).forEach(barcode => {
@@ -466,10 +466,21 @@ async function exportToExcel() {
 
       Object.keys(branches).forEach(bName => {
         const bData = branches[bName];
-        const target = bData.target || 0;
-        // قراءة الكمية الفعلية المحضرة بدقة
+        const target = Number(bData.target) || 0;
         const actual = (bData.actual !== "" && bData.actual !== undefined) ? Number(bData.actual) : 0;
         const worker = bData.worker || '';
+
+        // حساب حالة الفرع بالظبط حسب شروطك
+        let statusText = "";
+        if (bData.actual === "" || actual === 0) {
+          statusText = "لم يتم التحضير";
+        } else if (actual > target) {
+          statusText = "أعلى من المطلوبة";
+        } else if (actual < target) {
+          statusText = "اقل من المطلوبة";
+        } else if (actual === target) {
+          statusText = "تم التحضير";
+        }
 
         excelRows.push([
           barcode,
@@ -477,6 +488,7 @@ async function exportToExcel() {
           bName,
           target,
           actual,
+          statusText, // أضافة النتيجة هنا
           worker
         ]);
       });
