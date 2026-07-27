@@ -34,17 +34,23 @@
   }
   .worker-badge::before { content: '●'; color: #28a745; font-size: 0.8rem; }
 
-  /* شبكة مؤشرات الإنجاز (الأصناف + القطع) */
+  /* شبكة كروت مؤشرات إنجاز الأصناف والقطع */
   .progress-grid {
-    display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px;
   }
-  @media(max-width: 768px) { .progress-grid { grid-template-columns: 1fr; } }
+  @media(max-width: 900px) { .progress-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media(max-width: 550px) { .progress-grid { grid-template-columns: 1fr; } }
 
-  .prog-card { background: #faf8f5; border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; }
-  .progress-bar-bg { background: var(--line); height: 16px; border-radius: 8px; overflow: hidden; margin-top: 8px; }
-  .progress-bar-fill { background: var(--primary); height: 100%; width: 0%; transition: width 0.4s ease; }
+  .prog-card { background: #faf8f5; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .prog-card .p-title { font-size: 0.8rem; font-weight: bold; color: var(--muted); margin-bottom: 4px; display: flex; justify-content: space-between; }
+  .prog-card .p-num { font-size: 1.15rem; font-weight: 800; color: var(--text); }
   
-  .btn-export { background: #217346; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 1rem; display: inline-flex; align-items: center; gap: 8px; transition: 0.2s; }
+  .progress-bar-bg { background: var(--line); height: 10px; border-radius: 5px; overflow: hidden; margin-top: 8px; }
+  .progress-bar-fill { background: var(--primary); height: 100%; width: 0%; transition: width 0.4s ease; }
+  .progress-bar-fill.warning { background: #d97706; }
+  .progress-bar-fill.success { background: #16a34a; }
+  
+  .btn-export { background: #217346; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.95rem; display: inline-flex; align-items: center; gap: 8px; transition: 0.2s; white-space: nowrap; }
   .btn-export:hover { background: #1e6b41; }
   .btn-reset { background: #dc3545; color: white; border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
   
@@ -62,7 +68,7 @@
 <body>
 
 <div class="container">
-  <!-- الشاشة الأولى: رفع ملف أو كتابة كود (بدون أي تعديل) -->
+  <!-- الشاشة الأولى: رفع ملف أو كتابة كود -->
   <div class="card" id="uploadCard">
     <h1>BranchPrep Cloud 🖥️</h1>
     <p style="text-align: center; color: var(--muted);">رفع طلبية جديدة أو فتح متابعة طلبية سابقة</p>
@@ -83,9 +89,9 @@
     <div id="status" style="text-align:center; font-weight:bold; margin-top:10px; color:var(--primary);"></div>
   </div>
 
-  <!-- الشاشة الثانية: المراقبة الحية (المعدلة بالطلبات) -->
+  <!-- الشاشة الثانية: المراقبة الحية -->
   <div id="liveDashboard" class="card hidden">
-    <!-- المربع الأول: كود الطلبية المرفوعة بنفس تصميمه -->
+    <!-- كود الطلبية -->
     <div class="code-banner">
       <div>
         <div style="font-weight:bold; color:var(--muted);">كود التحضير النشط حالياً:</div>
@@ -97,7 +103,7 @@
       </div>
     </div>
 
-    <!-- إضافة المربع الثاني المباشر: أسماء العمال المتواجدين حياً بالتحضير -->
+    <!-- أسماء العمال المتواجدين حياً بالتحضير -->
     <div class="workers-box">
       <span style="font-weight:bold; font-size:0.9rem; color:var(--text);">👷 العمال النشطين حالياً:</span>
       <div id="workersListContainer" style="display:flex; gap:8px; flex-wrap:wrap;">
@@ -105,40 +111,61 @@
       </div>
     </div>
 
-    <!-- شبكة لوحتين النسب: الأولى للأصناف والثانية للقطع -->
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:15px;">
-      <div style="flex-grow:1;">
-        <div class="progress-grid">
-          <!-- لوحة نسبة إنجاز الأصناف (المنتجات) -->
-          <div class="prog-card">
-            <div style="display:flex; justify-content:space-between; font-size:0.85rem; font-weight:bold;">
-              <span>📦 نسبة إنجاز الأصناف (المنتجات):</span>
-              <span id="itemsProgressText">0% (0 / 0 صنف)</span>
-            </div>
-            <div class="progress-bar-bg">
-              <div class="progress-bar-fill" id="itemsProgressBarFill"></div>
-            </div>
-          </div>
-
-          <!-- لوحة نسبة إنجاز القطع الكلية -->
-          <div class="prog-card">
-            <div style="display:flex; justify-content:space-between; font-size:0.85rem; font-weight:bold;">
-              <span>🧩 نسبة إنجاز القطع الكلية:</span>
-              <span id="progressText">0% (0 / 0 قطعة)</span>
-            </div>
-            <div class="progress-bar-bg">
-              <div class="progress-bar-fill" id="progressBarFill"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-      
+    <!-- زرار التصدير ورأس المؤشرات -->
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+      <h3 style="margin:0; font-size:1.05rem;">مؤشرات إنجاز الأصناف والقطع 📊</h3>
       <button class="btn-export" onclick="exportToExcel()">
         📊 تصدير النتيجة إلى الإكسيل
       </button>
     </div>
 
-    <h3 style="margin-top:15px; border-bottom:2px solid var(--primary); padding-bottom:8px;">الأصناف قيد التحضير حالياً ⏱️</h3>
+    <!-- شبكة المؤشرات الـ 4 المقسمة بالتفصيل -->
+    <div class="progress-grid">
+      <!-- 1. الأصناف المسحوبة/النشطة (التي بدأ العمل عليها) -->
+      <div class="prog-card">
+        <div class="p-title">
+          <span>📦 أصناف بدأ تحضيرها:</span>
+        </div>
+        <div class="p-num" id="startedItemsText">0 / 0 صنف</div>
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill" id="startedItemsBar"></div>
+        </div>
+      </div>
+
+      <!-- 2. أصناف مكتملة التحضير -->
+      <div class="prog-card">
+        <div class="p-title">
+          <span>✅ أصناف مكتملة 100%:</span>
+        </div>
+        <div class="p-num" style="color:#155724;" id="completedItemsText">0 / 0 صنف</div>
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill success" id="completedItemsBar"></div>
+        </div>
+      </div>
+
+      <!-- 3. أصناف قيد التحضير (غير مكتملة) -->
+      <div class="prog-card">
+        <div class="p-title">
+          <span>⏳ أصناف قيد التحضير:</span>
+        </div>
+        <div class="p-num" style="color:#856404;" id="pendingItemsText">0 صنف</div>
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill warning" id="pendingItemsBar"></div>
+        </div>
+      </div>
+
+      <!-- 4. إجمالي نسبة القطع الكلية -->
+      <div class="prog-card">
+        <div class="p-title">
+          <span>🧩 إجمالي القطع الكلية:</span>
+        </div>
+        <div class="p-num" id="totalQtyText">0% (0 / 0)</div>
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill" id="totalQtyBar"></div>
+        </div>
+      </div>
+    </div>
+    <h3 style="margin-top:20px; border-bottom:2px solid var(--primary); padding-bottom:8px;">الأصناف قيد التحضير حالياً ⏱️</h3>
     <table>
       <thead>
         <tr>
@@ -149,7 +176,6 @@
         </tr>
       </thead>
       <tbody id="itemsTableBody">
-        <!-- يتم التعبئة تلقائياً -->
       </tbody>
     </table>
   </div>
@@ -183,7 +209,7 @@ async function openExistingOrder() {
     const res = await fetch(`${DB_URL}/orders/${code}.json`);
     const data = await res.json();
     
-    if(data && data.items) {
+    if(data && (data.items || data.activeSessions)) {
       document.getElementById('status').textContent = '';
       currentActiveCode = code;
       localStorage.setItem('bp_admin_code', code);
@@ -197,13 +223,13 @@ async function openExistingOrder() {
     document.getElementById('status').textContent = '';
   }
 }
-  async function fetchOrderData(code) {
+
+async function fetchOrderData(code) {
   try {
     const res = await fetch(`${DB_URL}/orders/${code}.json`);
     const data = await res.json();
-    if (data && data.items) {
-      currentItemsData = data.items;
-      updateDashboardUI(data.items);
+    if (data) {
+      updateDashboardUI(data);
     }
   } catch(err) {
     console.error("Error fetching order:", err);
@@ -298,36 +324,50 @@ function startLiveMonitoring(orderCode) {
   eventSource = new EventSource(`${DB_URL}/orders/${orderCode}.json`);
   eventSource.onmessage = function(e) {
     const data = JSON.parse(e.data);
-    if(data && data.items) {
-      currentItemsData = data.items;
-      updateDashboardUI(data.items);
+    if(data) {
+      updateDashboardUI(data);
     }
   };
 }
 
-function updateDashboardUI(items) {
+function updateDashboardUI(orderData) {
+  const items = orderData.items || {};
+  const sessions = orderData.activeSessions || {};
+  currentItemsData = items;
+
   const tbody = document.getElementById('itemsTableBody');
   tbody.innerHTML = '';
 
-  let totalItems = 0;
-  let completedItems = 0;
+  let totalItemsCount = 0;       // إجمالي الأصناف بالطلب
+  let startedItemsCount = 0;     // أصناف بدأ تحضيرها (عليها عمل)
+  let completedItemsCount = 0;   // أصناف مكتملة 100%
+  let pendingItemsCount = 0;     // أصناف قيد التحضير (بدأت ولم تكتمل)
 
-  let totalTarget = 0;
-  let totalActual = 0;
+  let totalTargetQty = 0;
+  let totalActualQty = 0;
   let hasVisibleItems = false;
 
   const activeWorkersMap = {};
 
+  // 1. تتبع العمال النشطين
+  Object.keys(sessions).forEach(sKey => {
+    const sess = sessions[sKey];
+    if (sess && sess.name && sess.timestamp) {
+      if (Date.now() - sess.timestamp < 6000) {
+        activeWorkersMap[sess.name] = true;
+      }
+    }
+  });
+
   Object.keys(items).forEach(barcode => {
-    totalItems++;
+    totalItemsCount++;
     const item = items[barcode];
     let branchDetailsHtml = '';
     let isItemComplete = true;
     let isBeingPrepared = false;
 
-    // تتبع العمال الحاضرين حياً في قفل المنتجات (خلال آخر 10 ثوانٍ)
     if (item.lock && item.lock.worker && item.lock.timestamp) {
-      if (Date.now() - item.lock.timestamp < 10000) {
+      if (Date.now() - item.lock.timestamp < 6000) {
         activeWorkersMap[item.lock.worker] = true;
       }
     }
@@ -338,8 +378,8 @@ function updateDashboardUI(items) {
       const actual = bData.actual !== "" ? Number(bData.actual) : 0;
       const worker = bData.worker ? `(${bData.worker})` : '';
 
-      totalTarget += target;
-      totalActual += actual;
+      totalTargetQty += target;
+      totalActualQty += actual;
 
       if (actual < target) isItemComplete = false;
       if (bData.actual !== "") isBeingPrepared = true;
@@ -352,10 +392,17 @@ function updateDashboardUI(items) {
       `;
     });
 
-    if (isItemComplete && totalTarget > 0) completedItems++;
+    // تصنيف حالات الأصناف الثلاثة
+    if (isBeingPrepared) {
+      startedItemsCount++;
+      if (isItemComplete) {
+        completedItemsCount++;
+      } else {
+        pendingItemsCount++;
+      }
+    }
 
-    // إظهار المنتج في الجدول فقط إذا بدأ تحضيره
-    if (!isBeingPrepared && !(item.lock && Date.now() - item.lock.timestamp < 10000)) return;
+    if (!isBeingPrepared && !(item.lock && Date.now() - item.lock.timestamp < 6000)) return;
 
     hasVisibleItems = true;
     const tr = document.createElement('tr');
@@ -372,29 +419,40 @@ function updateDashboardUI(items) {
     tbody.appendChild(tr);
   });
 
-  // 1. عرض العمال الشغالين حالياً (يختفون تلقائياً عند الخروج)
+  // عرض أسماء العمال النشطين
   const workersArr = Object.keys(activeWorkersMap);
   const workersContainer = document.getElementById('workersListContainer');
   if (workersArr.length > 0) {
     workersContainer.innerHTML = workersArr.map(w => `<span class="worker-badge">${w}</span>`).join('');
   } else {
-    workersContainer.innerHTML = `<span style="color:#888; font-size:0.85rem;">لا يوجد عمال متواجدين بالتحضير حالياً</span>`;
+    workersContainer.innerHTML = `<span style="color:#888; font-size:0.85rem;">لا يوجد عمال متواجدين حالياً</span>`;
   }
 
-  // 2. عرض الملاحظة في حالة الجدول الفارغ
   if (!hasVisibleItems) {
     tbody.innerHTML = '<tr><td colspan="4" class="empty-state">لم يتم بدء التحضير في أي صنف بعد.<br>بمجرد أن يقوم العامل بمسح صنف، سيظهر هنا فوراً.</td></tr>';
   }
 
-  // 3. تحديث نسبة إنجاز الأصناف (المنتجات)
-  const itemsPercent = totalItems > 0 ? Math.min(100, Math.round((completedItems / totalItems) * 100)) : 0;
-  document.getElementById('itemsProgressBarFill').style.width = `${itemsPercent}%`;
-  document.getElementById('itemsProgressText').textContent = `${itemsPercent}% (${completedItems} / ${totalItems} صنف)`;
+  // --- تحديث المؤشرات الـ 4 ---
+  
+  // 1. الأصناف التي تم العمل عليها
+  const startedPercent = totalItemsCount > 0 ? Math.round((startedItemsCount / totalItemsCount) * 100) : 0;
+  document.getElementById('startedItemsText').textContent = `${startedItemsCount} / ${totalItemsCount} صنف (${startedPercent}%)`;
+  document.getElementById('startedItemsBar').style.width = `${startedPercent}%`;
 
-  // 4. تحديث نسبة إنجاز القطع الكلية
-  const percent = totalTarget > 0 ? Math.min(100, Math.round((totalActual / totalTarget) * 100)) : 0;
-  document.getElementById('progressBarFill').style.width = `${percent}%`;
-  document.getElementById('progressText').textContent = `${percent}% (${totalActual} / ${totalTarget} قطعة)`;
+  // 2. الأصناف المكتملة 100%
+  const completedPercent = totalItemsCount > 0 ? Math.round((completedItemsCount / totalItemsCount) * 100) : 0;
+  document.getElementById('completedItemsText').textContent = `${completedItemsCount} / ${totalItemsCount} صنف (${completedPercent}%)`;
+  document.getElementById('completedItemsBar').style.width = `${completedPercent}%`;
+
+  // 3. الأصناف قيد التحضير (غير المكتملة)
+  const pendingPercent = startedItemsCount > 0 ? Math.round((pendingItemsCount / startedItemsCount) * 100) : 0;
+  document.getElementById('pendingItemsText').textContent = `${pendingItemsCount} صنف`;
+  document.getElementById('pendingItemsBar').style.width = `${pendingPercent}%`;
+
+  // 4. إجمالي نسبة القطع الكلية
+  const totalQtyPercent = totalTargetQty > 0 ? Math.min(100, Math.round((totalActualQty / totalTargetQty) * 100)) : 0;
+  document.getElementById('totalQtyText').textContent = `${totalQtyPercent}% (${totalActualQty} / ${totalTargetQty})`;
+  document.getElementById('totalQtyBar').style.width = `${totalQtyPercent}%`;
 }
 
 async function exportToExcel() {
