@@ -180,8 +180,7 @@ var historyListArr = [];
 var currentCode = null;
 var activeBranch = null;
 var pollInterval = null;
-var isEditingManualInput = false; 
-var editTimer = null;
+var isEditingManualInput = false;
 
 try {
   workerName = localStorage.getItem('bp_worker') || "";
@@ -265,7 +264,7 @@ function fetchLatestData() {
         branchNames = Object.keys(branchesSet);
         document.getElementById('statusTag').textContent = 'جاهز للمسح';
         
-        // حماية هامة جداً: يمنع إعادة رسم الواجهة ومسح الأرقام لو العامل واقف بيعدل رقم
+        // منع إعادة رسم الجدول ومسح الخانات لو العامل بيكتب أرقام بيده
         if (currentCode && itemsData[currentCode] && !isEditingManualInput) {
           renderResult(currentCode, itemsData[currentCode], activeBranch);
         }
@@ -293,7 +292,8 @@ function safeFocus() {
     try { barcodeInput.focus({ preventScroll: true }); } catch (e) { barcodeInput.focus(); }
   }, 100);
 }
-  document.getElementById('scanForm').addEventListener('submit', function(e) {
+
+document.getElementById('scanForm').addEventListener('submit', function(e) {
   e.preventDefault();
   var code = barcodeInput.value.trim();
   if (!code) return;
@@ -420,19 +420,18 @@ function renderResult(code, row, focusBranch) {
     var zeroClass = isZero ? ' zero' : '';
     var workerText = bData.worker ? ' <small style="color:#217346; font-weight:bold;">(' + escapeHtml(bData.worker) + ')</small>' : '';
     
-    rowsHtml += '<tr class="' + (zeroClass + doneClass + selectedClass).trim() + '" data-branch="' + escapeHtml(bName) + '">' +
-      '<td>' + escapeHtml(bName) + workerText + '</td>' +
+    rowsHtml += '<tr id="branch_row_' + escapeHtml(bName) + '" class="' + (zeroClass + doneClass + selectedClass).trim() + '" data-branch="' + escapeHtml(bName) + '">' +
+      '<td>' + escapeHtml(bName) + '<span class="w-label">' + workerText + '</span></td>' +
       '<td class="qty">' + qtyNum + '</td>' +
       actionCell +
       '</tr>';
   });
-
   rowsHtml += '<tr class="total-row"><td>الإجمالي</td><td class="qty">' + total + '</td><td></td><td></td></tr>';
 
   document.getElementById('resultBox').innerHTML =
     '<div class="pname">' + escapeHtml(row.product || code) + '</div>' +
     (row.product ? '<div class="pbarcode">' + escapeHtml(code) + '</div>' : '') +
-    '<div class="progress-note">اتحضر ' + doneCount + ' من ' + neededCount + ' فرع محتاج تحضير — دوس على الفرع واضغط الباركود لتسجيله، أو (⚡) للملء.</div>' +
+    '<div class="progress-note">اتحضر <span id="doneCountText">' + doneCount + '</span> من ' + neededCount + ' فرع محتاج تحضير — دوس على الفرع واضغط الباركود لتسجيله، أو (⚡) للملء.</div>' +
     '<table class="branch-table"><tbody>' + rowsHtml + '</tbody></table>';
 }
 
@@ -450,8 +449,25 @@ function updateBranchActual(code, branch, val, skipRender) {
   itemsData[code].branches[branch].actual = val;
   itemsData[code].branches[branch].worker = workerName;
 
+  // تحديث الذكاء الخفيف بدون تدمير الـ HTML والـ Focus
   if (!skipRender) {
     renderResult(code, itemsData[code], branch);
+  } else {
+    // تحديث الشطب والاسم خفيف بدون مسح الخانة المفتوحة حالياً
+    var rowEl = document.getElementById('branch_row_' + branch);
+    if (rowEl) {
+      var targetQty = Number(itemsData[code].branches[branch].target) || 0;
+      var numVal = Number(val) || 0;
+      if (val !== '' && numVal >= targetQty) {
+        rowEl.classList.add('branch-done');
+      } else {
+        rowEl.classList.remove('branch-done');
+      }
+      var wLabel = rowEl.querySelector('.w-label');
+      if (wLabel) {
+        wLabel.innerHTML = workerName ? ' <small style="color:#217346; font-weight:bold;">(' + escapeHtml(workerName) + ')</small>' : '';
+      }
+    }
   }
 
   fetch(DB_URL + '/orders/' + orderCode + '/items/' + code + '/branches/' + branch + '.json', {
@@ -463,7 +479,7 @@ function updateBranchActual(code, branch, val, skipRender) {
 
 var resBox = document.getElementById('resultBox');
 
-// تجميد المزامنة فوراً عند فتح خانة التعديل
+// تفعيل وضع التعديل اليدوي لمنع التنافس
 resBox.addEventListener('focusin', function(e) {
   var input = e.target.closest('.actual-input');
   if (input) {
@@ -471,19 +487,20 @@ resBox.addEventListener('focusin', function(e) {
   }
 });
 
-// إرجاع المزامنة بعد ثانية واحدة من إغلاق خانة التعديل
 resBox.addEventListener('focusout', function(e) {
   var input = e.target.closest('.actual-input');
   if (input) {
-    clearTimeout(editTimer);
-    editTimer = setTimeout(function() {
-      isEditingManualInput = false;
-      safeFocus();
-    }, 1200);
+    // ننتظر 300ms للتحقق هل انتقل لـ Input تاني في نفس الشاشة أم خرج تماماً
+    setTimeout(function() {
+      if (!document.activeElement || !document.activeElement.classList.contains('actual-input')) {
+        isEditingManualInput = false;
+        safeFocus();
+      }
+    }, 300);
   }
 });
 
-// حفظ وحماية الرقم المكتوب لحظة بلحظة أثناء الكتابة
+// حفظ البيانات في الخلفية لحظة بلحظة دون التأثير على حركة الكيبورد والخانة
 resBox.addEventListener('input', function(e) {
   var input = e.target.closest('.actual-input');
   if (input && currentCode) {
