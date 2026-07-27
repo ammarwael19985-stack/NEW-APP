@@ -6,7 +6,7 @@
 <title>BranchPrep Cloud - لوحة إدارة المستودع</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
-  :root { --primary: #1f6f5c; --bg: #f4f6f8; --card: #ffffff; --text: #12181f; --success: #28a745; --muted: #6b6459; --line: #e2e8f0; }
+  :root { --primary: #1f6f5c; --bg: #f4f6f8; --card: #ffffff; --text: #12181f; --success: #28a745; --muted: #6b6459; --line: #e2e8f0; --warning: #d97706; }
   body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; }
   .container { max-width: 1100px; margin: 0 auto; }
   .card { background: var(--card); padding: 25px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); margin-bottom: 20px; }
@@ -39,17 +39,20 @@
   @media(max-width: 900px) { .progress-grid { grid-template-columns: repeat(2, 1fr); } }
   @media(max-width: 550px) { .progress-grid { grid-template-columns: 1fr; } }
 
-  .prog-card { background: #faf8f5; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
-  .prog-card .p-title { font-size: 0.8rem; font-weight: bold; color: var(--muted); margin-bottom: 4px; display: flex; justify-content: space-between; }
+  .prog-card { background: #faf8f5; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; position: relative; }
+  .prog-card .p-title { font-size: 0.8rem; font-weight: bold; color: var(--muted); margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center; }
   .prog-card .p-num { font-size: 1.15rem; font-weight: 800; color: var(--text); }
   
   .progress-bar-bg { background: var(--line); height: 10px; border-radius: 5px; overflow: hidden; margin-top: 8px; }
   .progress-bar-fill { background: var(--primary); height: 100%; width: 0%; transition: width 0.4s ease; }
-  .progress-bar-fill.warning { background: #d97706; }
+  .progress-bar-fill.warning { background: var(--warning); }
   .progress-bar-fill.success { background: #16a34a; }
   
-  .btn-export { background: #217346; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.95rem; display: inline-flex; align-items: center; gap: 8px; transition: 0.2s; white-space: nowrap; }
+  .btn-export { background: #217346; color: white; border: none; padding: 10px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.88rem; display: inline-flex; align-items: center; gap: 6px; transition: 0.2s; white-space: nowrap; }
   .btn-export:hover { background: #1e6b41; }
+  .btn-export-small { background: #d97706; color: white; border: none; padding: 3px 8px; border-radius: 6px; font-size: 0.72rem; font-weight: bold; cursor: pointer; float: left; }
+  .btn-export-small:hover { background: #b45309; }
+
   .btn-reset { background: #dc3545; color: white; border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
   
   table { width: 100%; border-collapse: collapse; margin-top: 15px; }
@@ -107,8 +110,8 @@
 
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
       <h3 style="margin:0; font-size:1.05rem;">مؤشرات إنجاز الأصناف والقطع 📊</h3>
-      <button class="btn-export" id="exportBtn" onclick="exportToExcel()">
-        📊 تصدير النتيجة إلى الإكسيل
+      <button class="btn-export" id="exportBtn" onclick="exportToExcel(false)">
+        📊 تصدير كل النتائج للإكسيل
       </button>
     </div>
 
@@ -136,6 +139,7 @@
       <div class="prog-card">
         <div class="p-title">
           <span>⏳ أصناف قيد التحضير:</span>
+          <button class="btn-export-small" onclick="exportToExcel(true)" title="تصدير الأصناف قيد التحضير فقط إلى إكسيل">📥 تصدير</button>
         </div>
         <div class="p-num" style="color:#856404;" id="pendingItemsText">0 صنف</div>
         <div class="progress-bar-bg">
@@ -226,8 +230,7 @@ async function fetchOrderData(code) {
   }
   return null;
 }
-
-const dropZone = document.getElementById('dropZone');
+  const dropZone = document.getElementById('dropZone');
 dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.style.borderColor = '#1f6f5c'; });
 dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor = '#b2c8c2'; });
 dropZone.addEventListener('drop', (e) => {
@@ -288,6 +291,7 @@ async function processExcelData(rows) {
       items[barcode] = { product: productName, branches: branches };
     }
   }
+
   const orderCode = Math.floor(1000 + Math.random() * 9000).toString();
   document.getElementById('status').textContent = `تم العثور على ${branchCols.length} فروع.. جاري الرفع!`;
   
@@ -436,12 +440,13 @@ function updateDashboardUI(orderData) {
   document.getElementById('totalQtyBar').style.width = `${totalQtyPercent}%`;
 }
 
-// دالة تصدير الإكسيل المحدثة بتضمين عمود "حالة التحضير" تلقائياً
-async function exportToExcel() {
+// دالة تصدير الإكسيل الذكية: تدعم التصدير الكلي أو تصدير الأصناف قيد التحضير فقط
+async function exportToExcel(onlyPending) {
   if (!currentActiveCode) return alert('لا توجد طلبية نشطة!');
   
   const btn = document.getElementById('exportBtn');
-  btn.textContent = "⏳ جاري جلب أحدث البيانات للتصدير...";
+  const originalText = btn.textContent;
+  btn.textContent = "⏳ جاري التصدير...";
   btn.disabled = true;
 
   try {
@@ -450,13 +455,12 @@ async function exportToExcel() {
 
     if (!items) {
       alert('لا توجد بيانات لتصديرها!');
-      btn.textContent = "📊 تصدير النتيجة إلى الإكسيل";
+      btn.textContent = originalText;
       btn.disabled = false;
       return;
     }
 
     const excelRows = [];
-    // إضافة عمود حالة التحضير الجديد في الهيدر
     const header = ['الباركود', 'اسم المنتج', 'الفرع', 'الكمية المطلوبة', 'الكمية المحضرة', 'حالة التحضير', 'المحضر'];
     excelRows.push(header);
 
@@ -464,13 +468,30 @@ async function exportToExcel() {
       const item = items[barcode];
       const branches = item.branches || {};
 
+      // حساب إجمالي الصنف كاملاً للتصفية إن كان خيار "قيد التحضير فقط" مفعلاً
+      let isItemPending = false;
+      let hasAnyActual = false;
+
+      Object.keys(branches).forEach(bName => {
+        const bData = branches[bName];
+        const target = Number(bData.target) || 0;
+        const actual = (bData.actual !== "" && bData.actual !== undefined) ? Number(bData.actual) : 0;
+        if (bData.actual !== "") hasAnyActual = true;
+        if (actual < target) isItemPending = true;
+      });
+
+      // لو طلب التصدير المخصص للأصناف قيد التحضير فقط (التي بدأت ولم تكتمل)
+      if (onlyPending && (!hasAnyActual || !isItemPending)) {
+        return;
+      }
+
       Object.keys(branches).forEach(bName => {
         const bData = branches[bName];
         const target = Number(bData.target) || 0;
         const actual = (bData.actual !== "" && bData.actual !== undefined) ? Number(bData.actual) : 0;
         const worker = bData.worker || '';
 
-        // حساب حالة الفرع بالظبط حسب شروطك
+        // شروط الحالة المطلوبة بالضبط
         let statusText = "";
         if (bData.actual === "" || actual === 0) {
           statusText = "لم يتم التحضير";
@@ -488,22 +509,34 @@ async function exportToExcel() {
           bName,
           target,
           actual,
-          statusText, // أضافة النتيجة هنا
+          statusText,
           worker
         ]);
       });
     });
 
+    if (excelRows.length <= 1) {
+      alert("لا توجد أصناف قيد التحضير حالياً للتصدير!");
+      btn.textContent = originalText;
+      btn.disabled = false;
+      return;
+    }
+
     const worksheet = XLSX.utils.aoa_to_sheet(excelRows);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "تقرير التحضير");
+    const sheetName = onlyPending ? "أصناف قيد التحضير" : "تقرير التحضير الكلي";
+    XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
     
-    XLSX.writeFile(workbook, `تقرير_طلبية_${currentActiveCode}.xlsx`);
+    const fileName = onlyPending 
+      ? `اصناف_قيد_التحضير_طلبية_${currentActiveCode}.xlsx`
+      : `تقرير_طلبية_${currentActiveCode}.xlsx`;
+
+    XLSX.writeFile(workbook, fileName);
   } catch(err) {
     alert("حدث خطأ أثناء إعداد التقرير، أعد المحاولة!");
   }
 
-  btn.textContent = "📊 تصدير النتيجة إلى الإكسيل";
+  btn.textContent = originalText;
   btn.disabled = false;
 }
 
