@@ -181,9 +181,9 @@ var currentCode = null;
 var activeBranch = null;
 var pollInterval = null;
 
-// متغيرات حماية الكتابة اليدوية الجوهرية
+// حماية التعديل اليدوي وتأخير السحب المضر
 var isEditingManualInput = false;
-var activeFocusedInput = null;
+var lastUserEditTime = 0;
 
 try {
   workerName = localStorage.getItem('bp_worker') || "";
@@ -250,8 +250,7 @@ function openScanScreen() {
     }, 2000);
   }
 }
-
-function sendSessionHeartbeat() {
+  function sendSessionHeartbeat() {
   if (!workerName || !orderCode) return;
   var cleanKey = workerName.replace(/[.#$\[\]]/g, "_");
   fetch(DB_URL + '/orders/' + orderCode + '/activeSessions/' + cleanKey + '.json', {
@@ -263,14 +262,41 @@ function sendSessionHeartbeat() {
 
 function fetchLatestData() {
   if (!orderCode) return;
-  // حماية حاسمة: لو العامل بيكتب في خانة دلوقتي، المزامنة المراجعة من السيرفر تُرفض فوراً لمنع مسح أرقامه!
-  if (isEditingManualInput) return;
+  
+  // حماية حاسمة: لو العامل أجرى كتابة يدوية خلال آخر 1.5 ثانية، يُمنع السحب من السيرفر تماماً
+  if (isEditingManualInput || (Date.now() - lastUserEditTime < 1500)) return;
 
   fetch(DB_URL + '/orders/' + orderCode + '.json')
     .then(function(res) { return res.json(); })
     .then(function(data) {
       if (data && data.items) {
-        itemsData = data.items;
+        // دمج البيانات الذكي: الاحتفاظ بالقيم المحلية الحديثة التي لم تُحفظ في السيرفر بعد
+        Object.keys(data.items).forEach(function(codeKey) {
+          if (!itemsData[codeKey]) {
+            itemsData[codeKey] = data.items[codeKey];
+          } else {
+            // تحديث السيرفر مع الاحتفاظ بالتعديلات الحالية المفتوحة
+            itemsData[codeKey].product = data.items[codeKey].product;
+            itemsData[codeKey].lock = data.items[codeKey].lock;
+            
+            var sBranches = data.items[codeKey].branches || {};
+            if (!itemsData[codeKey].branches) itemsData[codeKey].branches = {};
+
+            Object.keys(sBranches).forEach(function(bName) {
+              if (!itemsData[codeKey].branches[bName]) {
+                itemsData[codeKey].branches[bName] = sBranches[bName];
+              } else {
+                // إذا لم نكن في حالة تعديل نشط على هذا الفرع، نحدث من السيرفر
+                itemsData[codeKey].branches[bName].target = sBranches[bName].target;
+                if (Date.now() - lastUserEditTime > 1500) {
+                  itemsData[codeKey].branches[bName].actual = sBranches[bName].actual;
+                  itemsData[codeKey].branches[bName].worker = sBranches[bName].worker;
+                }
+              }
+            });
+          }
+        });
+
         var branchesSet = {};
         Object.keys(itemsData).forEach(function(k) {
           var item = itemsData[k];
@@ -281,14 +307,15 @@ function fetchLatestData() {
         branchNames = Object.keys(branchesSet);
         document.getElementById('statusTag').textContent = 'جاهز للمسح';
         
-        if (currentCode && itemsData[currentCode] && !isEditingManualInput) {
+        if (currentCode && itemsData[currentCode] && !isEditingManualInput && (Date.now() - lastUserEditTime > 1500)) {
           renderResult(currentCode, itemsData[currentCode], activeBranch);
         }
       }
     })
     .catch(function(err) {});
 }
-  function logout() {
+
+function logout() {
   var confirmExit = confirm("هل أنت تأكد من تسجيل الخروج؟");
   if (confirmExit) {
     if (pollInterval) clearInterval(pollInterval);
@@ -462,6 +489,8 @@ function updateBranchActual(code, branch, val, skipRender) {
   
   if (getActiveLockWorker(itemsData[code])) return;
 
+  lastUserEditTime = Date.now(); // تسجيل وقت الكتابة المحلية
+
   if (!itemsData[code].branches) itemsData[code].branches = {};
   if (!itemsData[code].branches[branch]) {
     itemsData[code].branches[branch] = { target:0, actual:"", worker:"" };
@@ -473,7 +502,6 @@ function updateBranchActual(code, branch, val, skipRender) {
   if (!skipRender) {
     renderResult(code, itemsData[code], branch);
   } else {
-    // تحديث الشكل الخارجي ذكياً بدون إفساد تركيز الخانة المفتوحة
     var rowEl = document.getElementById('branch_row_' + branch);
     if (rowEl) {
       var targetQty = Number(itemsData[code].branches[branch].target) || 0;
@@ -490,7 +518,7 @@ function updateBranchActual(code, branch, val, skipRender) {
     }
   }
 
-  // الحفظ الفوري المباشر للسيرفر
+  // الرفع المباشر للسيرفر
   fetch(DB_URL + '/orders/' + orderCode + '/items/' + code + '/branches/' + branch + '.json', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
@@ -500,31 +528,28 @@ function updateBranchActual(code, branch, val, skipRender) {
 
 var resBox = document.getElementById('resultBox');
 
-// إدارة الذكاء الكاملة لحركة الماوس والكيبورد بين الخانات
 resBox.addEventListener('focusin', function(e) {
   var input = e.target.closest('.actual-input');
   if (input) {
     isEditingManualInput = true;
-    activeFocusedInput = input;
+    lastUserEditTime = Date.now();
   }
 });
 
 resBox.addEventListener('focusout', function(e) {
   var input = e.target.closest('.actual-input');
   if (input) {
+    lastUserEditTime = Date.now();
     setTimeout(function() {
-      // التأكد التام: هل أيد العامل انتقلت لخانة ثانية بداخل الجدول؟
       var currentActive = document.activeElement;
       if (!currentActive || !currentActive.classList.contains('actual-input')) {
         isEditingManualInput = false;
-        activeFocusedInput = null;
         safeFocus();
       }
     }, 200);
   }
 });
 
-// الحفظ الفوري مع كل حرف يُكتب، وحمايته من الضياع
 resBox.addEventListener('input', function(e) {
   var input = e.target.closest('.actual-input');
   if (input && currentCode) {
