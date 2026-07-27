@@ -180,7 +180,8 @@ var historyListArr = [];
 var currentCode = null;
 var activeBranch = null;
 var pollInterval = null;
-var isEditingManualInput = false; // متغيرة لتتبع هل المستخدم يكتب يدوياً في خانة الكمية
+var isEditingManualInput = false; 
+var editTimer = null;
 
 try {
   workerName = localStorage.getItem('bp_worker') || "";
@@ -264,7 +265,7 @@ function fetchLatestData() {
         branchNames = Object.keys(branchesSet);
         document.getElementById('statusTag').textContent = 'جاهز للمسح';
         
-        // لا نجدد الرسم أو نغير الشاشة إذا كان العامل بيكتب في خانة الكمية حالياً
+        // حماية هامة جداً: يمنع إعادة رسم الواجهة ومسح الأرقام لو العامل واقف بيعدل رقم
         if (currentCode && itemsData[currentCode] && !isEditingManualInput) {
           renderResult(currentCode, itemsData[currentCode], activeBranch);
         }
@@ -286,15 +287,13 @@ function logout() {
 }
 
 function safeFocus() {
-  // حماية: عدم سحب التركيز إذا كان العامل بيكتب يدوياً
   if (isEditingManualInput) return;
   setTimeout(function() {
     barcodeInput.setAttribute('inputmode', 'none');
     try { barcodeInput.focus({ preventScroll: true }); } catch (e) { barcodeInput.focus(); }
   }, 100);
 }
-
-document.getElementById('scanForm').addEventListener('submit', function(e) {
+  document.getElementById('scanForm').addEventListener('submit', function(e) {
   e.preventDefault();
   var code = barcodeInput.value.trim();
   if (!code) return;
@@ -437,7 +436,7 @@ function renderResult(code, row, focusBranch) {
     '<table class="branch-table"><tbody>' + rowsHtml + '</tbody></table>';
 }
 
-function updateBranchActual(code, branch, val) {
+function updateBranchActual(code, branch, val, skipRender) {
   if (!code || !branch) return;
   if (!itemsData[code]) return;
   
@@ -451,7 +450,9 @@ function updateBranchActual(code, branch, val) {
   itemsData[code].branches[branch].actual = val;
   itemsData[code].branches[branch].worker = workerName;
 
-  renderResult(code, itemsData[code], branch);
+  if (!skipRender) {
+    renderResult(code, itemsData[code], branch);
+  }
 
   fetch(DB_URL + '/orders/' + orderCode + '/items/' + code + '/branches/' + branch + '.json', {
     method: 'PATCH',
@@ -462,19 +463,34 @@ function updateBranchActual(code, branch, val) {
 
 var resBox = document.getElementById('resultBox');
 
-// الأحداث الحية الخاصة بضبط لوحة المفاتيح والتركيز أثناء الكتابة اليدوية
+// تجميد المزامنة فوراً عند فتح خانة التعديل
 resBox.addEventListener('focusin', function(e) {
   var input = e.target.closest('.actual-input');
   if (input) {
-    isEditingManualInput = true; // إيقاف إعادة التركيز التلقائي لخانة الباركود
+    isEditingManualInput = true;
   }
 });
 
+// إرجاع المزامنة بعد ثانية واحدة من إغلاق خانة التعديل
 resBox.addEventListener('focusout', function(e) {
   var input = e.target.closest('.actual-input');
   if (input) {
-    isEditingManualInput = false; // إعادة سحب التركيز للباركود عند الخروج من الخانة
-    safeFocus();
+    clearTimeout(editTimer);
+    editTimer = setTimeout(function() {
+      isEditingManualInput = false;
+      safeFocus();
+    }, 1200);
+  }
+});
+
+// حفظ وحماية الرقم المكتوب لحظة بلحظة أثناء الكتابة
+resBox.addEventListener('input', function(e) {
+  var input = e.target.closest('.actual-input');
+  if (input && currentCode) {
+    var branch = input.getAttribute('data-branch');
+    if (branch) {
+      updateBranchActual(currentCode, branch, input.value, true);
+    }
   }
 });
 
@@ -501,18 +517,6 @@ resBox.addEventListener('click', function(e) {
       activeBranch = bName;
       renderResult(currentCode, itemsData[currentCode], bName);
       safeFocus();
-    }
-  }
-});
-
-resBox.addEventListener('change', function(e) {
-  if (itemsData[currentCode] && getActiveLockWorker(itemsData[currentCode])) return;
-  
-  var input = e.target.closest('.actual-input');
-  if (input && currentCode) {
-    var branch = input.getAttribute('data-branch');
-    if (branch) {
-      updateBranchActual(currentCode, branch, input.value);
     }
   }
 });
