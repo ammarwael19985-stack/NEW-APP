@@ -180,7 +180,10 @@ var historyListArr = [];
 var currentCode = null;
 var activeBranch = null;
 var pollInterval = null;
+
+// متغيرات حماية الكتابة اليدوية الجوهرية
 var isEditingManualInput = false;
+var activeFocusedInput = null;
 
 try {
   workerName = localStorage.getItem('bp_worker') || "";
@@ -230,7 +233,8 @@ function loginToOrder() {
     alert("حدث خطأ في التسجيل، جرب مرة أخرى.");
   }
 }
-  function openScanScreen() {
+
+function openScanScreen() {
   document.getElementById('workerLabel').textContent = workerName;
   document.getElementById('codeLabel').textContent = orderCode;
   document.getElementById('loginScreen').style.display = 'none';
@@ -241,13 +245,27 @@ function loginToOrder() {
   if (!pollInterval) {
     pollInterval = setInterval(function() {
       fetchLatestData();
+      sendSessionHeartbeat();
       if(currentCode) keepLockAlive(currentCode);
     }, 2000);
   }
 }
 
+function sendSessionHeartbeat() {
+  if (!workerName || !orderCode) return;
+  var cleanKey = workerName.replace(/[.#$\[\]]/g, "_");
+  fetch(DB_URL + '/orders/' + orderCode + '/activeSessions/' + cleanKey + '.json', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: workerName, timestamp: Date.now() })
+  }).catch(function(e){});
+}
+
 function fetchLatestData() {
   if (!orderCode) return;
+  // حماية حاسمة: لو العامل بيكتب في خانة دلوقتي، المزامنة المراجعة من السيرفر تُرفض فوراً لمنع مسح أرقامه!
+  if (isEditingManualInput) return;
+
   fetch(DB_URL + '/orders/' + orderCode + '.json')
     .then(function(res) { return res.json(); })
     .then(function(data) {
@@ -263,7 +281,6 @@ function fetchLatestData() {
         branchNames = Object.keys(branchesSet);
         document.getElementById('statusTag').textContent = 'جاهز للمسح';
         
-        // منع إعادة رسم الجدول ومسح الخانات لو العامل بيكتب أرقام بيده
         if (currentCode && itemsData[currentCode] && !isEditingManualInput) {
           renderResult(currentCode, itemsData[currentCode], activeBranch);
         }
@@ -271,11 +288,15 @@ function fetchLatestData() {
     })
     .catch(function(err) {});
 }
-
-function logout() {
+  function logout() {
   var confirmExit = confirm("هل أنت تأكد من تسجيل الخروج؟");
   if (confirmExit) {
     if (pollInterval) clearInterval(pollInterval);
+    if (workerName && orderCode) {
+      var cleanKey = workerName.replace(/[.#$\[\]]/g, "_");
+      fetch(DB_URL + '/orders/' + orderCode + '/activeSessions/' + cleanKey + '.json', { method: 'DELETE' }).catch(function(e){});
+    }
+
     try {
       localStorage.removeItem('bp_worker');
       localStorage.removeItem('bp_code');
@@ -449,11 +470,10 @@ function updateBranchActual(code, branch, val, skipRender) {
   itemsData[code].branches[branch].actual = val;
   itemsData[code].branches[branch].worker = workerName;
 
-  // تحديث الذكاء الخفيف بدون تدمير الـ HTML والـ Focus
   if (!skipRender) {
     renderResult(code, itemsData[code], branch);
   } else {
-    // تحديث الشطب والاسم خفيف بدون مسح الخانة المفتوحة حالياً
+    // تحديث الشكل الخارجي ذكياً بدون إفساد تركيز الخانة المفتوحة
     var rowEl = document.getElementById('branch_row_' + branch);
     if (rowEl) {
       var targetQty = Number(itemsData[code].branches[branch].target) || 0;
@@ -470,6 +490,7 @@ function updateBranchActual(code, branch, val, skipRender) {
     }
   }
 
+  // الحفظ الفوري المباشر للسيرفر
   fetch(DB_URL + '/orders/' + orderCode + '/items/' + code + '/branches/' + branch + '.json', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
@@ -479,28 +500,31 @@ function updateBranchActual(code, branch, val, skipRender) {
 
 var resBox = document.getElementById('resultBox');
 
-// تفعيل وضع التعديل اليدوي لمنع التنافس
+// إدارة الذكاء الكاملة لحركة الماوس والكيبورد بين الخانات
 resBox.addEventListener('focusin', function(e) {
   var input = e.target.closest('.actual-input');
   if (input) {
     isEditingManualInput = true;
+    activeFocusedInput = input;
   }
 });
 
 resBox.addEventListener('focusout', function(e) {
   var input = e.target.closest('.actual-input');
   if (input) {
-    // ننتظر 300ms للتحقق هل انتقل لـ Input تاني في نفس الشاشة أم خرج تماماً
     setTimeout(function() {
-      if (!document.activeElement || !document.activeElement.classList.contains('actual-input')) {
+      // التأكد التام: هل أيد العامل انتقلت لخانة ثانية بداخل الجدول؟
+      var currentActive = document.activeElement;
+      if (!currentActive || !currentActive.classList.contains('actual-input')) {
         isEditingManualInput = false;
+        activeFocusedInput = null;
         safeFocus();
       }
-    }, 300);
+    }, 200);
   }
 });
 
-// حفظ البيانات في الخلفية لحظة بلحظة دون التأثير على حركة الكيبورد والخانة
+// الحفظ الفوري مع كل حرف يُكتب، وحمايته من الضياع
 resBox.addEventListener('input', function(e) {
   var input = e.target.closest('.actual-input');
   if (input && currentCode) {
