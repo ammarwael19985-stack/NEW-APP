@@ -181,9 +181,8 @@ var currentCode = null;
 var activeBranch = null;
 var pollInterval = null;
 
-// حماية التعديل اليدوي وتأخير السحب المضر
 var isEditingManualInput = false;
-var lastUserEditTime = 0;
+var localModifiedBranches = {}; // سجل التعديلات المحلية لمنع مسح أي رقم
 
 try {
   workerName = localStorage.getItem('bp_worker') || "";
@@ -250,7 +249,8 @@ function openScanScreen() {
     }, 2000);
   }
 }
-  function sendSessionHeartbeat() {
+
+function sendSessionHeartbeat() {
   if (!workerName || !orderCode) return;
   var cleanKey = workerName.replace(/[.#$\[\]]/g, "_");
   fetch(DB_URL + '/orders/' + orderCode + '/activeSessions/' + cleanKey + '.json', {
@@ -262,20 +262,15 @@ function openScanScreen() {
 
 function fetchLatestData() {
   if (!orderCode) return;
-  
-  // حماية حاسمة: لو العامل أجرى كتابة يدوية خلال آخر 1.5 ثانية، يُمنع السحب من السيرفر تماماً
-  if (isEditingManualInput || (Date.now() - lastUserEditTime < 1500)) return;
 
   fetch(DB_URL + '/orders/' + orderCode + '.json')
     .then(function(res) { return res.json(); })
     .then(function(data) {
       if (data && data.items) {
-        // دمج البيانات الذكي: الاحتفاظ بالقيم المحلية الحديثة التي لم تُحفظ في السيرفر بعد
         Object.keys(data.items).forEach(function(codeKey) {
           if (!itemsData[codeKey]) {
             itemsData[codeKey] = data.items[codeKey];
           } else {
-            // تحديث السيرفر مع الاحتفاظ بالتعديلات الحالية المفتوحة
             itemsData[codeKey].product = data.items[codeKey].product;
             itemsData[codeKey].lock = data.items[codeKey].lock;
             
@@ -283,12 +278,14 @@ function fetchLatestData() {
             if (!itemsData[codeKey].branches) itemsData[codeKey].branches = {};
 
             Object.keys(sBranches).forEach(function(bName) {
+              var modKey = codeKey + "_" + bName;
               if (!itemsData[codeKey].branches[bName]) {
                 itemsData[codeKey].branches[bName] = sBranches[bName];
               } else {
-                // إذا لم نكن في حالة تعديل نشط على هذا الفرع، نحدث من السيرفر
                 itemsData[codeKey].branches[bName].target = sBranches[bName].target;
-                if (Date.now() - lastUserEditTime > 1500) {
+                
+                // حماية الحديدية: القيمة المحلية لا تُستبدل إلا إذا كان السيرفر أحدث
+                if (!localModifiedBranches[modKey]) {
                   itemsData[codeKey].branches[bName].actual = sBranches[bName].actual;
                   itemsData[codeKey].branches[bName].worker = sBranches[bName].worker;
                 }
@@ -307,15 +304,15 @@ function fetchLatestData() {
         branchNames = Object.keys(branchesSet);
         document.getElementById('statusTag').textContent = 'جاهز للمسح';
         
-        if (currentCode && itemsData[currentCode] && !isEditingManualInput && (Date.now() - lastUserEditTime > 1500)) {
+        // إعادة الرسم عند عدم وجود تعديل يدوي مفتوح
+        if (currentCode && itemsData[currentCode] && !isEditingManualInput) {
           renderResult(currentCode, itemsData[currentCode], activeBranch);
         }
       }
     })
     .catch(function(err) {});
 }
-
-function logout() {
+  function logout() {
   var confirmExit = confirm("هل أنت تأكد من تسجيل الخروج؟");
   if (confirmExit) {
     if (pollInterval) clearInterval(pollInterval);
@@ -407,9 +404,10 @@ function keepLockAlive(code) {
   }
 }
 
+// قفل الجلسة المستقر لمدة 12 ثانية يمنع الانتقال المزعج للرسالة
 function getActiveLockWorker(row) {
   if (row && row.lock && row.lock.worker && row.lock.worker !== workerName) {
-    if (Date.now() - row.lock.timestamp < 7000) {
+    if (Date.now() - row.lock.timestamp < 12000) {
       return row.lock.worker;
     }
   }
@@ -489,7 +487,8 @@ function updateBranchActual(code, branch, val, skipRender) {
   
   if (getActiveLockWorker(itemsData[code])) return;
 
-  lastUserEditTime = Date.now(); // تسجيل وقت الكتابة المحلية
+  var modKey = code + "_" + branch;
+  localModifiedBranches[modKey] = true; // علامة حماية محلية
 
   if (!itemsData[code].branches) itemsData[code].branches = {};
   if (!itemsData[code].branches[branch]) {
@@ -518,11 +517,13 @@ function updateBranchActual(code, branch, val, skipRender) {
     }
   }
 
-  // الرفع المباشر للسيرفر
+  // إرسال التحديث للسيرفر وإزالة الحماية بعد الحفظ التأكيدي
   fetch(DB_URL + '/orders/' + orderCode + '/items/' + code + '/branches/' + branch + '.json', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ actual: val, worker: workerName })
+  }).then(function() {
+    setTimeout(function() { delete localModifiedBranches[modKey]; }, 3000);
   }).catch(function(e){});
 }
 
@@ -532,14 +533,12 @@ resBox.addEventListener('focusin', function(e) {
   var input = e.target.closest('.actual-input');
   if (input) {
     isEditingManualInput = true;
-    lastUserEditTime = Date.now();
   }
 });
 
 resBox.addEventListener('focusout', function(e) {
   var input = e.target.closest('.actual-input');
   if (input) {
-    lastUserEditTime = Date.now();
     setTimeout(function() {
       var currentActive = document.activeElement;
       if (!currentActive || !currentActive.classList.contains('actual-input')) {
