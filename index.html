@@ -182,7 +182,7 @@ var activeBranch = null;
 var pollInterval = null;
 
 var isEditingManualInput = false;
-var localModifiedBranches = {}; // سجل التعديلات المحلية لمنع مسح أي رقم
+var localModifiedBranches = {};
 
 try {
   workerName = localStorage.getItem('bp_worker') || "";
@@ -249,8 +249,7 @@ function openScanScreen() {
     }, 2000);
   }
 }
-
-function sendSessionHeartbeat() {
+  function sendSessionHeartbeat() {
   if (!workerName || !orderCode) return;
   var cleanKey = workerName.replace(/[.#$\[\]]/g, "_");
   fetch(DB_URL + '/orders/' + orderCode + '/activeSessions/' + cleanKey + '.json', {
@@ -283,8 +282,6 @@ function fetchLatestData() {
                 itemsData[codeKey].branches[bName] = sBranches[bName];
               } else {
                 itemsData[codeKey].branches[bName].target = sBranches[bName].target;
-                
-                // حماية الحديدية: القيمة المحلية لا تُستبدل إلا إذا كان السيرفر أحدث
                 if (!localModifiedBranches[modKey]) {
                   itemsData[codeKey].branches[bName].actual = sBranches[bName].actual;
                   itemsData[codeKey].branches[bName].worker = sBranches[bName].worker;
@@ -304,7 +301,6 @@ function fetchLatestData() {
         branchNames = Object.keys(branchesSet);
         document.getElementById('statusTag').textContent = 'جاهز للمسح';
         
-        // إعادة الرسم عند عدم وجود تعديل يدوي مفتوح
         if (currentCode && itemsData[currentCode] && !isEditingManualInput) {
           renderResult(currentCode, itemsData[currentCode], activeBranch);
         }
@@ -312,13 +308,15 @@ function fetchLatestData() {
     })
     .catch(function(err) {});
 }
-  function logout() {
+
+function logout() {
   var confirmExit = confirm("هل أنت تأكد من تسجيل الخروج؟");
   if (confirmExit) {
     if (pollInterval) clearInterval(pollInterval);
     if (workerName && orderCode) {
       var cleanKey = workerName.replace(/[.#$\[\]]/g, "_");
       fetch(DB_URL + '/orders/' + orderCode + '/activeSessions/' + cleanKey + '.json', { method: 'DELETE' }).catch(function(e){});
+      if (currentCode) unlockCode(currentCode);
     }
 
     try {
@@ -356,6 +354,11 @@ document.getElementById('scanForm').addEventListener('submit', function(e) {
   document.getElementById('placeholder').style.display = 'none';
 
   if (itemsData[code]) {
+    // إزالة القفل عن الصنف القديم فور الانتقال لصنف جديد
+    if (currentCode && currentCode !== code) {
+      unlockCode(currentCode);
+    }
+
     document.getElementById('notFoundBox').style.display = 'none';
     document.getElementById('resultBox').style.display = 'block';
     activeBranch = null;
@@ -379,23 +382,32 @@ document.getElementById('scanForm').addEventListener('submit', function(e) {
   safeFocus();
 });
 
+// محاولة الحصول على القفل: يُمنح فقط إذا كان الصنف غير مقفول أو القفل الحالي انتهت صلاحتيه
 function tryAcquireLock(code) {
   if (!workerName || !code) return;
   var item = itemsData[code];
   var activeLock = getActiveLockWorker(item);
+
   if (!activeLock) {
+    var lockData = { worker: workerName, timestamp: Date.now() };
+    if (!item.lock) item.lock = {};
+    item.lock.worker = workerName;
+    item.lock.timestamp = lockData.timestamp;
+
     fetch(DB_URL + '/orders/' + orderCode + '/items/' + code + '/lock.json', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ worker: workerName, timestamp: Date.now() })
+      body: JSON.stringify(lockData)
     }).catch(function(e){});
   }
 }
 
+// تجديد وقت القفل لصاحبه فقط لمنع انتهاء الصلاحية أثناء عمله
 function keepLockAlive(code) {
   if (!workerName || !code) return;
   var item = itemsData[code];
   if (item && item.lock && item.lock.worker === workerName) {
+    item.lock.timestamp = Date.now();
     fetch(DB_URL + '/orders/' + orderCode + '/items/' + code + '/lock/timestamp.json', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -404,10 +416,22 @@ function keepLockAlive(code) {
   }
 }
 
-// قفل الجلسة المستقر لمدة 12 ثانية يمنع الانتقال المزعج للرسالة
+// فك القفل عن الصنف
+function unlockCode(code) {
+  if (!workerName || !code) return;
+  var item = itemsData[code];
+  if (item && item.lock && item.lock.worker === workerName) {
+    delete item.lock;
+    fetch(DB_URL + '/orders/' + orderCode + '/items/' + code + '/lock.json', {
+      method: 'DELETE'
+    }).catch(function(e){});
+  }
+}
+
+// فحص القفل: يعتبر القفل سارياً لـ 15 ثانية كاملة
 function getActiveLockWorker(row) {
   if (row && row.lock && row.lock.worker && row.lock.worker !== workerName) {
-    if (Date.now() - row.lock.timestamp < 12000) {
+    if (Date.now() - row.lock.timestamp < 15000) {
       return row.lock.worker;
     }
   }
@@ -488,7 +512,7 @@ function updateBranchActual(code, branch, val, skipRender) {
   if (getActiveLockWorker(itemsData[code])) return;
 
   var modKey = code + "_" + branch;
-  localModifiedBranches[modKey] = true; // علامة حماية محلية
+  localModifiedBranches[modKey] = true;
 
   if (!itemsData[code].branches) itemsData[code].branches = {};
   if (!itemsData[code].branches[branch]) {
@@ -517,7 +541,6 @@ function updateBranchActual(code, branch, val, skipRender) {
     }
   }
 
-  // إرسال التحديث للسيرفر وإزالة الحماية بعد الحفظ التأكيدي
   fetch(DB_URL + '/orders/' + orderCode + '/items/' + code + '/branches/' + branch + '.json', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
