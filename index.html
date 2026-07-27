@@ -107,7 +107,7 @@
     width:100%; padding:8px 4px; border:1px solid var(--line); border-radius:8px;
     text-align:center; font-size:1rem; font-weight:700; color:var(--ink); background:#faf8f2;
   }
-  .actual-input:focus { outline:2px solid var(--accent); border-color:var(--accent); }
+  .actual-input:focus { outline:2px solid var(--accent); border-color:var(--accent); background:#ffffff; }
   .actual-input:disabled { background:#e2ded8 !important; color:#999 !important; cursor:not-allowed; border-color:#ccc; }
 
   .branch-table td.zero-note { color:#b7b1a3; font-size:.8rem; text-align:center; }
@@ -149,6 +149,7 @@
         <button id="logoutBtn" onclick="logout()">🚪 خروج</button>
       </div>
     </div>
+
     <div class="scan-box">
       <label>اضرب الباركود دلوقتي</label>
       <form id="scanForm">
@@ -179,6 +180,7 @@ var historyListArr = [];
 var currentCode = null;
 var activeBranch = null;
 var pollInterval = null;
+var isEditingManualInput = false; // متغيرة لتتبع هل المستخدم يكتب يدوياً في خانة الكمية
 
 try {
   workerName = localStorage.getItem('bp_worker') || "";
@@ -262,7 +264,8 @@ function fetchLatestData() {
         branchNames = Object.keys(branchesSet);
         document.getElementById('statusTag').textContent = 'جاهز للمسح';
         
-        if (currentCode && itemsData[currentCode]) {
+        // لا نجدد الرسم أو نغير الشاشة إذا كان العامل بيكتب في خانة الكمية حالياً
+        if (currentCode && itemsData[currentCode] && !isEditingManualInput) {
           renderResult(currentCode, itemsData[currentCode], activeBranch);
         }
       }
@@ -283,6 +286,8 @@ function logout() {
 }
 
 function safeFocus() {
+  // حماية: عدم سحب التركيز إذا كان العامل بيكتب يدوياً
+  if (isEditingManualInput) return;
   setTimeout(function() {
     barcodeInput.setAttribute('inputmode', 'none');
     try { barcodeInput.focus({ preventScroll: true }); } catch (e) { barcodeInput.focus(); }
@@ -295,7 +300,6 @@ document.getElementById('scanForm').addEventListener('submit', function(e) {
   if (!code) return;
 
   if (code === currentCode && itemsData[code]) {
-    // التأكد من عدم وجود قفل من عامل آخر
     var lockWorker = getActiveLockWorker(itemsData[code]);
     if (!lockWorker && activeBranch) {
       var currentVal = Number(itemsData[code].branches && itemsData[code].branches[activeBranch] ? itemsData[code].branches[activeBranch].actual : 0) || 0;
@@ -332,13 +336,10 @@ document.getElementById('scanForm').addEventListener('submit', function(e) {
   safeFocus();
 });
 
-// محاولة حجز القفل الثابت للعامل الأول
 function tryAcquireLock(code) {
   if (!workerName || !code) return;
   var item = itemsData[code];
-  
   var activeLock = getActiveLockWorker(item);
-  // لو مفيش حد حاطط قفل حالي، يوضع القفل باسم العامل الحالي
   if (!activeLock) {
     fetch(DB_URL + '/orders/' + orderCode + '/items/' + code + '/lock.json', {
       method: 'PUT',
@@ -348,7 +349,6 @@ function tryAcquireLock(code) {
   }
 }
 
-// تجديد وقت القفل لإبقائه نشطاً للعامل الأول
 function keepLockAlive(code) {
   if (!workerName || !code) return;
   var item = itemsData[code];
@@ -361,7 +361,6 @@ function keepLockAlive(code) {
   }
 }
 
-// إرجاع اسم العامل الحاجز للمنتج إن وجد وكان نشطاً خلال آخر 7 ثوانٍ
 function getActiveLockWorker(row) {
   if (row && row.lock && row.lock.worker && row.lock.worker !== workerName) {
     if (Date.now() - row.lock.timestamp < 7000) {
@@ -380,7 +379,6 @@ function renderResult(code, row, focusBranch) {
 
   if (focusBranch !== undefined) activeBranch = focusBranch;
 
-  // فحص هل المنتج محجوز بقفل من عامل آخر
   var lockWorker = getActiveLockWorker(row);
   var isReadOnly = !!lockWorker;
 
@@ -416,7 +414,7 @@ function renderResult(code, row, focusBranch) {
       var disabledAttr = isReadOnly ? 'disabled="disabled"' : '';
 
       actionCell =
-        '<td class="actual"><input type="number" class="actual-input" data-branch="' + escapeHtml(bName) + '" placeholder="0" value="' + escapeHtml(String(actualVal)) + '" ' + disabledAttr + ' onclick="event.stopPropagation();" /></td>' +
+        '<td class="actual"><input type="number" inputmode="numeric" class="actual-input" data-branch="' + escapeHtml(bName) + '" placeholder="0" value="' + escapeHtml(String(actualVal)) + '" ' + disabledAttr + ' onclick="event.stopPropagation();" /></td>' +
         '<td class="check"><button type="button" class="fill-btn" data-branch="' + escapeHtml(bName) + '" ' + disabledAttr + '>⚡</button></td>';
     }
 
@@ -443,7 +441,6 @@ function updateBranchActual(code, branch, val) {
   if (!code || !branch) return;
   if (!itemsData[code]) return;
   
-  // حماية صارمة: منع حفظ أي تعديل إطلاقاً إن كان هناك قفل للغير
   if (getActiveLockWorker(itemsData[code])) return;
 
   if (!itemsData[code].branches) itemsData[code].branches = {};
@@ -464,6 +461,23 @@ function updateBranchActual(code, branch, val) {
 }
 
 var resBox = document.getElementById('resultBox');
+
+// الأحداث الحية الخاصة بضبط لوحة المفاتيح والتركيز أثناء الكتابة اليدوية
+resBox.addEventListener('focusin', function(e) {
+  var input = e.target.closest('.actual-input');
+  if (input) {
+    isEditingManualInput = true; // إيقاف إعادة التركيز التلقائي لخانة الباركود
+  }
+});
+
+resBox.addEventListener('focusout', function(e) {
+  var input = e.target.closest('.actual-input');
+  if (input) {
+    isEditingManualInput = false; // إعادة سحب التركيز للباركود عند الخروج من الخانة
+    safeFocus();
+  }
+});
+
 resBox.addEventListener('click', function(e) {
   if (itemsData[currentCode] && getActiveLockWorker(itemsData[currentCode])) return;
 
