@@ -27,21 +27,26 @@ jobs:
           npm install -g cordova
           cordova create worker_app com.branchprep.worker "BranchPrep Worker"
           
-          # نسخ كل ملفاتك
+          # نسخ ملفات الفرونت اند
           cp -r index.html worker_app/www/ 2>/dev/null || true
           cp -r *.html *.js *.css worker_app/www/ 2>/dev/null || true
           cp -r *.png worker_app/www/ 2>/dev/null || true
           
           cd worker_app
           
-          # إدراج إعدادات الأيقونة وإلغاء الـ Splash Screen رسمياً في config.xml
-          sed -i '/<\/widget>/i \    <icon src="www/icon-192.png" />\n    <preference name="ShowSplashScreen" value="false" />\n    <preference name="SplashScreen" value="none" />\n    <preference name="SplashScreenDelay" value="0" />\n    <preference name="ShowSplashScreenSpinner" value="false" />' config.xml
+          # إعدادات إخفاء الشاشة الافتراضية
+          sed -i '/<\/widget>/i \    <preference name="ShowSplashScreen" value="false" />\n    <preference name="SplashScreenDelay" value="0" />' config.xml
           
           cordova platform add android
           
-          # استبدال أيقونات النظام بالأيقونة الخاصة بك
+          # استبدال كل أيقونات النظام وشاشات أندرويد الحديثة (Android 12 Splash) بـ icon-192.png
           if [ -f www/icon-192.png ]; then
             find platforms/android/ -name "ic_launcher*.png" -exec cp www/icon-192.png {} \;
+            find platforms/android/ -name "ic_cdv_splashscreen*.png" -exec cp www/icon-192.png {} \;
+            find platforms/android/ -name "splash*.png" -exec cp www/icon-192.png {} \;
+            
+            # استبدال أي ملف vector خلفيته الروبوت بصورتك
+            find platforms/android/ -name "ic_cdv_splashscreen.xml" -exec cp www/icon-192.png {} \; 2>/dev/null || true
           fi
 
           cordova build android --debug
