@@ -27,21 +27,22 @@ jobs:
           npm install -g cordova
           cordova create worker_app com.branchprep.worker "BranchPrep Worker"
           
-          # نسخ كل ملفاتك
           cp -r index.html worker_app/www/ 2>/dev/null || true
           cp -r *.html *.js *.css worker_app/www/ 2>/dev/null || true
           cp -r *.png worker_app/www/ 2>/dev/null || true
           
           cd worker_app
           
-          # إدراج إعدادات الأيقونة وإلغاء الـ Splash Screen رسمياً في config.xml
-          sed -i '/<\/widget>/i \    <icon src="www/icon-192.png" />\n    <preference name="ShowSplashScreen" value="false" />\n    <preference name="SplashScreen" value="none" />\n    <preference name="SplashScreenDelay" value="0" />\n    <preference name="ShowSplashScreenSpinner" value="false" />' config.xml
+          # 1. إدراج إعدادات الأيقونة واللون الأخضر الرسمية داخل config.xml قبل بناء المنصة
+          sed -i '/<\/widget>/i \    <icon src="www/icon-192.png" />\n    <preference name="AndroidWindowSplashScreenAnimatedIcon" value="www/icon-192.png" />\n    <preference name="AndroidWindowSplashScreenBackground" value="#1f6f5c" />\n    <preference name="SplashScreenDelay" value="0" />\n    <preference name="AutoHideSplashScreen" value="true" />\n    <preference name="FadeSplashScreen" value="false" />' config.xml
           
           cordova platform add android
           
-          # استبدال أيقونات النظام بالأيقونة الخاصة بك
+          # 2. استبدال جميع صور الأيقونات والشاشات النظامية مباشرة بـ icon-192.png
           if [ -f www/icon-192.png ]; then
             find platforms/android/ -name "ic_launcher*.png" -exec cp www/icon-192.png {} \;
+            find platforms/android/ -name "ic_cdv_splashscreen*.png" -exec cp www/icon-192.png {} \;
+            find platforms/android/ -name "splash*.png" -exec cp www/icon-192.png {} \;
           fi
 
           cordova build android --debug
