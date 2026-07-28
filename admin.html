@@ -164,7 +164,7 @@
         <tr>
           <th>الباركود</th>
           <th>اسم المنتج</th>
-          <th>تفاصيل الفروع (المطلوب / المحضر / المحضر)</th>
+          <th>تفاصيل الفروع (المطلوب / المحضر)</th>
           <th>الحالة</th>
         </tr>
       </thead>
@@ -230,7 +230,8 @@ async function fetchOrderData(code) {
   }
   return null;
 }
-  const dropZone = document.getElementById('dropZone');
+
+const dropZone = document.getElementById('dropZone');
 dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.style.borderColor = '#1f6f5c'; });
 dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor = '#b2c8c2'; });
 dropZone.addEventListener('drop', (e) => {
@@ -332,10 +333,10 @@ function updateDashboardUI(orderData) {
   const tbody = document.getElementById('itemsTableBody');
   tbody.innerHTML = '';
 
-  let totalItemsCount = 0;       
-  let startedItemsCount = 0;     
-  let completedItemsCount = 0;   
-  let pendingItemsCount = 0;     
+  let totalItemsCount = 0;        
+  let startedItemsCount = 0;      
+  let completedItemsCount = 0;    
+  let pendingItemsCount = 0;      
 
   let totalTargetQty = 0;
   let totalActualQty = 0;
@@ -440,7 +441,7 @@ function updateDashboardUI(orderData) {
   document.getElementById('totalQtyBar').style.width = `${totalQtyPercent}%`;
 }
 
-// دالة تصدير الإكسيل الذكية: تدعم التصدير الكلي أو تصدير الأصناف قيد التحضير فقط
+// دالة تصدير الإكسيل المحدثة بفتح الملف التلقائي + التنبيه الأنيق
 async function exportToExcel(onlyPending) {
   if (!currentActiveCode) return alert('لا توجد طلبية نشطة!');
   
@@ -468,7 +469,6 @@ async function exportToExcel(onlyPending) {
       const item = items[barcode];
       const branches = item.branches || {};
 
-      // حساب إجمالي الصنف كاملاً للتصفية إن كان خيار "قيد التحضير فقط" مفعلاً
       let isItemPending = false;
       let hasAnyActual = false;
 
@@ -480,7 +480,6 @@ async function exportToExcel(onlyPending) {
         if (actual < target) isItemPending = true;
       });
 
-      // لو طلب التصدير المخصص للأصناف قيد التحضير فقط (التي بدأت ولم تكتمل)
       if (onlyPending && (!hasAnyActual || !isItemPending)) {
         return;
       }
@@ -491,7 +490,6 @@ async function exportToExcel(onlyPending) {
         const actual = (bData.actual !== "" && bData.actual !== undefined) ? Number(bData.actual) : 0;
         const worker = bData.worker || '';
 
-        // شروط الحالة المطلوبة بالضبط
         let statusText = "";
         if (bData.actual === "" || actual === 0) {
           statusText = "لم يتم التحضير";
@@ -531,13 +529,73 @@ async function exportToExcel(onlyPending) {
       ? `اصناف_قيد_التحضير_طلبية_${currentActiveCode}.xlsx`
       : `تقرير_طلبية_${currentActiveCode}.xlsx`;
 
-    XLSX.writeFile(workbook, fileName);
+    // 1. إنشاء محتوى الملف أوتوماتيكياً
+    const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const fileUrl = URL.createObjectURL(blob);
+
+    // 2. التحميل الآلي المباشر
+    const link = document.createElement('a');
+    link.href = fileUrl;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    // 3. محاولة الفتح التلقائي وإظهار التنبيه الأنيق
+    setTimeout(() => {
+      window.open(fileUrl, '_blank');
+      showDownloadToast(fileUrl, fileName);
+    }, 300);
+
   } catch(err) {
     alert("حدث خطأ أثناء إعداد التقرير، أعد المحاولة!");
   }
 
   btn.textContent = originalText;
   btn.disabled = false;
+}
+
+// دالة إظهار الشريط الأخضر السريع لفتح الملف فوراً
+function showDownloadToast(fileUrl, fileName) {
+  const existingToast = document.getElementById('excelDownloadToast');
+  if (existingToast) existingToast.remove();
+
+  const toast = document.createElement('div');
+  toast.id = 'excelDownloadToast';
+  toast.style.cssText = `
+    position: fixed;
+    bottom: 25px;
+    right: 25px;
+    background-color: #1f6f5c;
+    color: white;
+    padding: 14px 20px;
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    font-family: inherit;
+    animation: fadeIn 0.3s ease;
+  `;
+
+  toast.innerHTML = `
+    <span style="font-size:1.1rem;">📊 تم تصدير الملف بنجاح!</span>
+    <a href="${fileUrl}" target="_blank" download="${fileName}" style="
+      background: white;
+      color: #1f6f5c;
+      padding: 6px 14px;
+      text-decoration: none;
+      font-weight: bold;
+      border-radius: 6px;
+      font-size: 0.88rem;
+      transition: 0.2s;
+    ">افتح الملف الآن 📂</a>
+  `;
+
+  document.body.appendChild(toast);
+  setTimeout(() => { if (toast) toast.remove(); }, 10000);
 }
 
 function resetCurrentOrder() {
