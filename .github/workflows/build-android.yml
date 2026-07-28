@@ -27,27 +27,21 @@ jobs:
           npm install -g cordova
           cordova create worker_app com.branchprep.worker "BranchPrep Worker"
           
-          # نسخ ملفات الموقع والفرونت اند
+          # نسخ ملفات الموقع
           cp -r index.html worker_app/www/ 2>/dev/null || true
           cp -r *.html *.js *.css worker_app/www/ 2>/dev/null || true
           cp -r *.png worker_app/www/ 2>/dev/null || true
           
           cd worker_app
           
-          # إزالة إضافة السلاش سكرين الافتراضية وتعديل config.xml لإلغائها نهائياً
-          sed -i '/<\/widget>/i \    <preference name="ShowSplashScreen" value="false" />\n    <preference name="SplashScreen" value="none" />\n    <preference name="SplashScreenDelay" value="0" />\n    <preference name="AutoHideSplashScreen" value="true" />' config.xml
+          # إلغاء شاشات كوردوفا النظامية للاعتماد على شاشة الـ HTML المخصصة
+          sed -i '/<\/widget>/i \    <preference name="ShowSplashScreen" value="false" />\n    <preference name="SplashScreen" value="none" />\n    <preference name="SplashScreenDelay" value="0" />' config.xml
           
           cordova platform add android
           
-          # استبدال جميع أيقونات الأندرويد الخارجية بـ icon-192.png
+          # استبدال الأيقونات الخارجية بـ icon-192.png الصغيرة
           if [ -f www/icon-192.png ]; then
             find platforms/android/ -name "ic_launcher*.png" -exec cp www/icon-192.png {} \;
-          fi
-
-          # مسح أو استبدال ملفات اللوجو الرمادي بـ icon-512.png
-          if [ -f www/icon-512.png ]; then
-            find platforms/android/ -name "*splash*" -exec cp www/icon-512.png {} \;
-            find platforms/android/ -name "*logo*" -exec cp www/icon-512.png {} \;
           fi
 
           cordova build android --debug
