@@ -31,17 +31,20 @@ jobs:
           cp -r *.png worker_app/www/ 2>/dev/null || true
           
           cd worker_app
+          
+          # إضافة إعدادات إلغاء شاشة كوردوفا الافتراضية
+          sed -i '/<\/widget>/i \    <preference name="SplashScreen" value="none" />\n    <preference name="SplashScreenDelay" value="0" />' config.xml
+          
           cordova platform add android
           
-          # 1. تعيين أيقونة التطبيق الخارجية من برة (icon-192.png)
+          # 1. استبدال أيقونة التطبيق الخارجية (icon-192.png)
           if [ -f www/icon-192.png ]; then
             find platforms/android/app/src/main/res/ -name "ic_launcher*.png" -exec cp www/icon-192.png {} \;
           fi
 
-          # 2. تعيين أيقونة مقدمة الشاشة الترحيبية / Splash Screen (icon-512.png)
+          # 2. استبدال جميع صور وشاشات الترحيب واللوجو بالكامل بـ (icon-512.png)
           if [ -f www/icon-512.png ]; then
-            find platforms/android/app/src/main/res/ -name "screen.png" -exec cp www/icon-512.png {} \;
-            find platforms/android/app/src/main/res/ -name "drawable*.png" -exec cp www/icon-512.png {} \;
+            find platforms/android/app/src/main/res/ -name "*.png" ! -name "ic_launcher*" -exec cp www/icon-512.png {} \;
           fi
 
           cordova build android --debug
