@@ -126,15 +126,15 @@
 </head>
 <body>
 
-<!-- شاشة الترحيب التلقائية بالصورة الكبيرة icon-512.png -->
+<!-- شاشة الترحيب باللوجو الجديد المخصص my-logo.png -->
 <div id="appSplash" style="position:fixed; top:0; left:0; width:100%; height:100%; background:#1f6f5c; display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:999999; transition: opacity 0.4s ease;">
-  <img src="icon-512.png" alt="BranchPrep" style="width:130px; height:130px; border-radius:24px; box-shadow:0 8px 24px rgba(0,0,0,0.25); margin-bottom:16px; object-fit:cover;">
-  <h2 style="color:white; margin:0; font-size:1.4rem; font-family:sans-serif; font-weight:bold;">BranchPrep Worker</h2>
-  <p style="color:rgba(255,255,255,0.8); margin-top:6px; font-size:0.85rem; font-family:sans-serif;">جاري تحميل التطبيق...</p>
+  <img src="my-logo.png" alt="BranchPrep Logo" style="width:160px; height:auto; max-height:160px; margin-bottom:20px; object-fit:contain;">
+  <h2 style="color:#ffffff; margin:0; font-size:1.3rem; font-family:sans-serif; font-weight:bold;">BranchPrep Worker</h2>
+  <p style="color:rgba(255,255,255,0.75); margin-top:8px; font-size:0.85rem; font-family:sans-serif;">جاري تحميل التطبيق...</p>
 </div>
 
 <script>
-  // إخفاء الشاشة الترحيبية بعد ثانية من التحميل
+  // إخفاء الشاشة الترحيبية تلقائياً
   window.addEventListener('load', function() {
     setTimeout(function() {
       var splash = document.getElementById('appSplash');
@@ -142,7 +142,7 @@
         splash.style.opacity = '0';
         setTimeout(function() { splash.remove(); }, 400);
       }
-    }, 800);
+    }, 700);
   });
 </script>
 
@@ -225,7 +225,6 @@ window.onload = function() {
     }
   } catch(e) {}
 };
-
 function loginToOrder() {
   try {
     var wName = document.getElementById('workerNameInput').value.trim();
@@ -330,8 +329,7 @@ function fetchLatestData() {
     })
     .catch(function(err) {});
 }
-
-function logout() {
+  function logout() {
   var confirmExit = confirm("هل أنت تأكد من تسجيل الخروج؟");
   if (confirmExit) {
     if (pollInterval) clearInterval(pollInterval);
@@ -420,7 +418,8 @@ function tryAcquireLock(code) {
     }).catch(function(e){});
   }
 }
-  function keepLockAlive(code) {
+
+function keepLockAlive(code) {
   if (!workerName || !code) return;
   var item = itemsData[code];
   if (item && item.lock && item.lock.worker === workerName) {
