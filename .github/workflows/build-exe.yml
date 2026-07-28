@@ -16,15 +16,21 @@ jobs:
         with:
           node-version: 18
 
-      - name: Install Nativefier
-        run: npm install -g nativefier
+      - name: Install Nativefier and Tool
+        run: |
+          npm install -g nativefier png-to-ico
+
+      - name: Convert PNG Icon to ICO
+        shell: pwsh
+        run: |
+          npx png-to-ico admin-icon-512.png > icon.ico
 
       - name: Build EXE File
         run: |
-          nativefier --name "BranchPrep Central" "https://ammarwael19985-stack.github.io/NEW-APP/admin.html" --icon "admin-icon-512.png" --portable --out app_dist
+          nativefier --name "BranchPrep Central" "https://ammarwael19985-stack.github.io/NEW-APP/admin.html" --icon "icon.ico" --portable --out "app_output"
 
       - name: Upload EXE Artifact
         uses: actions/upload-artifact@v4
         with:
           name: BranchPrep-Central-Windows-App
-          path: app_dist/
+          path: app_output/
