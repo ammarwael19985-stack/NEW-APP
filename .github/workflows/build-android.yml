@@ -27,24 +27,26 @@ jobs:
           npm install -g cordova
           cordova create worker_app com.branchprep.worker "BranchPrep Worker"
           
-          # نسخ ملفات الموقع والفرونت اند
+          # نسخ كل ملفات الموقع
           cp -r index.html worker_app/www/ 2>/dev/null || true
           cp -r *.html *.js *.css worker_app/www/ 2>/dev/null || true
           cp -r *.png worker_app/www/ 2>/dev/null || true
           
           cd worker_app
           
-          # تعديل إعدادات config.xml لإلغاء الروبوت والشاشة الرمادية تماماً
-          sed -i '/<\/widget>/i \    <preference name="ShowSplashScreenSpinner" value="false" />\n    <preference name="SplashScreenDelay" value="0" />\n    <preference name="AutoHideSplashScreen" value="true" />\n    <preference name="FadeSplashScreen" value="false" />' config.xml
+          # إلغاء شاشات الترحيب والسبينر واللوجو الرمادي
+          sed -i '/<\/widget>/i \    <preference name="ShowSplashScreen" value="false" />\n    <preference name="ShowSplashScreenSpinner" value="false" />\n    <preference name="SplashScreen" value="none" />\n    <preference name="SplashScreenDelay" value="0" />' config.xml
           
           cordova platform add android
           
-          # استبدال كل صور النظام واللوجو وأيقونة التطبيق بـ icon-192.png
+          # 1. استبدال كل الأيقونات التقليدية والأيقونات التكيفية (Adaptive Icons) بـ icon-192.png
           if [ -f www/icon-192.png ]; then
             find platforms/android/ -name "ic_launcher*.png" -exec cp www/icon-192.png {} \;
-            find platforms/android/ -name "ic_cdv_splashscreen*.png" -exec cp www/icon-192.png {} \;
-            find platforms/android/ -name "*.png" -path "*/mipmap*" -exec cp www/icon-192.png {} \;
+            find platforms/android/ -name "ic_launcher_foreground.png" -exec cp www/icon-192.png {} \;
           fi
+
+          # 2. مسح ملفات الروبوت الرمادي نهائياً وإبدالها
+          find platforms/android/ -name "ic_cdv_splashscreen*.png" -exec cp www/icon-192.png {} \; 2>/dev/null || true
 
           cordova build android --debug
 
