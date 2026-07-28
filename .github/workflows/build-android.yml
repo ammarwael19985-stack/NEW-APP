@@ -1,21 +1,27 @@
 name: Build Android App (APK)
+
 on:
   workflow_dispatch:
+
 jobs:
   build-android-apk:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+
       - name: Setup Java JDK
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
+
       - name: Build Android APK
         run: |
           npm install -g cordova
@@ -28,11 +34,8 @@ jobs:
           
           cd worker_app
           
-          # إدراج إعدادات الأيقونة وإلغاء الـ Splash Screen + لون الخلفية (بدل الرمادي)
-          # ملحوظة: 0xff2e7d32 ده كود أخضر تقريبي بصيغة 0xAARRGGBB
-          # لو عندك كود اللون الأخضر بتاع تصميمك بالظبط (hex زي #2E7D32)
-          # حط نفس الأرقام الست بعد "0xff" هنا
-          sed -i '/<\/widget>/i \    <icon src="www/icon-192.png" />\n    <preference name="ShowSplashScreen" value="false" />\n    <preference name="SplashScreen" value="none" />\n    <preference name="SplashScreenDelay" value="0" />\n    <preference name="ShowSplashScreenSpinner" value="false" />\n    <preference name="BackgroundColor" value="0xff2e7d32" />' config.xml
+          # إدراج إعدادات الأيقونة وإلغاء الـ Splash Screen رسمياً في config.xml
+          sed -i '/<\/widget>/i \    <icon src="www/icon-192.png" />\n    <preference name="ShowSplashScreen" value="false" />\n    <preference name="SplashScreen" value="none" />\n    <preference name="SplashScreenDelay" value="0" />\n    <preference name="ShowSplashScreenSpinner" value="false" />' config.xml
           
           cordova platform add android
           
@@ -40,7 +43,9 @@ jobs:
           if [ -f www/icon-192.png ]; then
             find platforms/android/ -name "ic_launcher*.png" -exec cp www/icon-192.png {} \;
           fi
+
           cordova build android --debug
+
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
