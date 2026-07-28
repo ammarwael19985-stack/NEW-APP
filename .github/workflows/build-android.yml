@@ -27,26 +27,21 @@ jobs:
           npm install -g cordova
           cordova create worker_app com.branchprep.worker "BranchPrep Worker"
           
+          # نسخ كل ملفاتك
           cp -r index.html worker_app/www/ 2>/dev/null || true
           cp -r *.html *.js *.css worker_app/www/ 2>/dev/null || true
           cp -r *.png worker_app/www/ 2>/dev/null || true
           
           cd worker_app
           
-          # إلغاء شاشات كوردوفا بالكامل
-          sed -i '/<\/widget>/i \    <preference name="ShowSplashScreen" value="false" />\n    <preference name="SplashScreen" value="none" />\n    <preference name="SplashScreenDelay" value="0" />' config.xml
+          # إدراج إعدادات الأيقونة وإلغاء الـ Splash Screen رسمياً في config.xml
+          sed -i '/<\/widget>/i \    <icon src="www/icon-192.png" />\n    <preference name="ShowSplashScreen" value="false" />\n    <preference name="SplashScreen" value="none" />\n    <preference name="SplashScreenDelay" value="0" />\n    <preference name="ShowSplashScreenSpinner" value="false" />' config.xml
           
           cordova platform add android
           
-          # مسح ملفات الـ Vector XML الافتراضية (اللي جواها الروبوت الرمادي)
-          find platforms/android/app/src/main/res/ -name "ic_launcher_foreground.xml" -delete 2>/dev/null || true
-          find platforms/android/app/src/main/res/ -name "ic_launcher_background.xml" -delete 2>/dev/null || true
-          find platforms/android/app/src/main/res/ -name "ic_cdv_splashscreen.xml" -delete 2>/dev/null || true
-          
-          # استبدال كل صور PNG في كل المجلدات بأيقونتك الصغيرة المظبوطة
+          # استبدال أيقونات النظام بالأيقونة الخاصة بك
           if [ -f www/icon-192.png ]; then
-            find platforms/android/app/src/main/res/ -name "ic_launcher*.png" -exec cp www/icon-192.png {} \;
-            find platforms/android/app/src/main/res/ -name "ic_cdv_splashscreen*.png" -exec cp www/icon-192.png {} \;
+            find platforms/android/ -name "ic_launcher*.png" -exec cp www/icon-192.png {} \;
           fi
 
           cordova build android --debug
