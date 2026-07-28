@@ -441,7 +441,7 @@ function updateDashboardUI(orderData) {
   document.getElementById('totalQtyBar').style.width = `${totalQtyPercent}%`;
 }
 
-// دالة تصدير الإكسيل المحدثة بفتح الملف التلقائي + التنبيه الأنيق
+// دالة تصدير الإكسيل المتوافقة 100% مع برامج الـ EXE وبدون رسائل حظر أمني
 async function exportToExcel(onlyPending) {
   if (!currentActiveCode) return alert('لا توجد طلبية نشطة!');
   
@@ -529,24 +529,11 @@ async function exportToExcel(onlyPending) {
       ? `اصناف_قيد_التحضير_طلبية_${currentActiveCode}.xlsx`
       : `تقرير_طلبية_${currentActiveCode}.xlsx`;
 
-    // 1. إنشاء محتوى الملف أوتوماتيكياً
-    const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-    const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    const fileUrl = URL.createObjectURL(blob);
+    // تصدير آمن ومباشر
+    XLSX.writeFile(workbook, fileName);
 
-    // 2. التحميل الآلي المباشر
-    const link = document.createElement('a');
-    link.href = fileUrl;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    // 3. محاولة الفتح التلقائي وإظهار التنبيه الأنيق
-    setTimeout(() => {
-      window.open(fileUrl, '_blank');
-      showDownloadToast(fileUrl, fileName);
-    }, 300);
+    // إظهار شريط النجاح التنبيهي
+    showDownloadToast(fileName);
 
   } catch(err) {
     alert("حدث خطأ أثناء إعداد التقرير، أعد المحاولة!");
@@ -556,8 +543,8 @@ async function exportToExcel(onlyPending) {
   btn.disabled = false;
 }
 
-// دالة إظهار الشريط الأخضر السريع لفتح الملف فوراً
-function showDownloadToast(fileUrl, fileName) {
+// شريط التنبيه عند تصدير الملف
+function showDownloadToast(fileName) {
   const existingToast = document.getElementById('excelDownloadToast');
   if (existingToast) existingToast.remove();
 
@@ -575,27 +562,17 @@ function showDownloadToast(fileUrl, fileName) {
     z-index: 9999;
     display: flex;
     align-items: center;
-    gap: 15px;
+    gap: 12px;
     font-family: inherit;
-    animation: fadeIn 0.3s ease;
   `;
 
   toast.innerHTML = `
     <span style="font-size:1.1rem;">📊 تم تصدير الملف بنجاح!</span>
-    <a href="${fileUrl}" target="_blank" download="${fileName}" style="
-      background: white;
-      color: #1f6f5c;
-      padding: 6px 14px;
-      text-decoration: none;
-      font-weight: bold;
-      border-radius: 6px;
-      font-size: 0.88rem;
-      transition: 0.2s;
-    ">افتح الملف الآن 📂</a>
+    <span style="font-size:0.88rem; background:rgba(255,255,255,0.2); padding:4px 8px; border-radius:4px;">تجد الملف الآن في مجلد التحميلات (Downloads)</span>
   `;
 
   document.body.appendChild(toast);
-  setTimeout(() => { if (toast) toast.remove(); }, 10000);
+  setTimeout(() => { if (toast) toast.remove(); }, 6000);
 }
 
 function resetCurrentOrder() {
