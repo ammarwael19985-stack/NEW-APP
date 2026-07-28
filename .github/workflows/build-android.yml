@@ -34,17 +34,22 @@ jobs:
           
           cd worker_app
           
-          # 1. إعدادات الأيقونة والشاشة الأولى (Android Splash) باستخدام my-logo.png
-          sed -i '/<\/widget>/i \    <icon src="www/icon-192.png" />\n    <preference name="AndroidWindowSplashScreenAnimatedIcon" value="www/my-logo.png" />\n    <preference name="AndroidWindowSplashScreenBackground" value="#1f6f5c" />\n    <preference name="SplashScreenDelay" value="0" />' config.xml
+          # 1. إعدادات الأيقونة التكيفية والشاشة الأولى باللون الأخضر #1f6f5c
+          sed -i '/<\/widget>/i \    <icon src="www/icon-192.png" foreground="www/icon-192.png" background="#1f6f5c" />\n    <preference name="AndroidWindowSplashScreenAnimatedIcon" value="www/my-logo.png" />\n    <preference name="AndroidWindowSplashScreenBackground" value="#1f6f5c" />\n    <preference name="SplashScreenDelay" value="0" />' config.xml
           
           cordova platform add android
           
-          # 2. استبدال الأيقونة الخارجية بـ icon-192.png
+          # 2. استبدال جميع أيقونات المشغل
           if [ -f www/icon-192.png ]; then
             find platforms/android/ -name "ic_launcher*.png" -exec cp www/icon-192.png {} \;
           fi
 
-          # 3. استبدال الدخلة الأولى (شاشة النظام) بـ my-logo.png
+          # 3. إزالة البرواز الأبيض وتعديل خلفية الأيقونة التكيفية إلى الأخضر #1f6f5c
+          find platforms/android/ -name "*ic_launcher_background*.xml" -exec sed -i 's/#FFFFFF/#1f6f5c/gI' {} \;
+          find platforms/android/ -name "*colors*.xml" -exec sed -i 's/#FFFFFF/#1f6f5c/gI' {} \;
+          find platforms/android/ -name "*colors*.xml" -exec sed -i 's/#ffffff/#1f6f5c/gI' {} \;
+
+          # 4. استبدال الدخلة الأولى (شاشة النظام) بـ my-logo.png
           if [ -f www/my-logo.png ]; then
             find platforms/android/ -name "ic_cdv_splashscreen*.png" -exec cp www/my-logo.png {} \;
             find platforms/android/ -name "splash*.png" -exec cp www/my-logo.png {} \;
