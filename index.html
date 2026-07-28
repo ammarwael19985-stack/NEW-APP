@@ -125,6 +125,27 @@
 </style>
 </head>
 <body>
+
+<!-- شاشة الترحيب التلقائية بالصورة الكبيرة icon-512.png -->
+<div id="appSplash" style="position:fixed; top:0; left:0; width:100%; height:100%; background:#1f6f5c; display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:999999; transition: opacity 0.4s ease;">
+  <img src="icon-512.png" alt="BranchPrep" style="width:130px; height:130px; border-radius:24px; box-shadow:0 8px 24px rgba(0,0,0,0.25); margin-bottom:16px; object-fit:cover;">
+  <h2 style="color:white; margin:0; font-size:1.4rem; font-family:sans-serif; font-weight:bold;">BranchPrep Worker</h2>
+  <p style="color:rgba(255,255,255,0.8); margin-top:6px; font-size:0.85rem; font-family:sans-serif;">جاري تحميل التطبيق...</p>
+</div>
+
+<script>
+  // إخفاء الشاشة الترحيبية بعد ثانية من التحميل
+  window.addEventListener('load', function() {
+    setTimeout(function() {
+      var splash = document.getElementById('appSplash');
+      if (splash) {
+        splash.style.opacity = '0';
+        setTimeout(function() { splash.remove(); }, 400);
+      }
+    }, 800);
+  });
+</script>
+
 <div class="wrap">
   <header>
     <h1>BranchPrep <span style="background:var(--accent);color:#fff;font-size:.62rem;padding:2px 8px;border-radius:10px;vertical-align:middle;">تحضير الفروع</span></h1>
@@ -249,7 +270,8 @@ function openScanScreen() {
     }, 2000);
   }
 }
-  function sendSessionHeartbeat() {
+
+function sendSessionHeartbeat() {
   if (!workerName || !orderCode) return;
   var cleanKey = workerName.replace(/[.#$\[\]]/g, "_");
   fetch(DB_URL + '/orders/' + orderCode + '/activeSessions/' + cleanKey + '.json', {
@@ -350,11 +372,9 @@ document.getElementById('scanForm').addEventListener('submit', function(e) {
     safeFocus();
     return;
   }
-
   document.getElementById('placeholder').style.display = 'none';
 
   if (itemsData[code]) {
-    // إزالة القفل عن الصنف القديم فور الانتقال لصنف جديد
     if (currentCode && currentCode !== code) {
       unlockCode(currentCode);
     }
@@ -382,7 +402,6 @@ document.getElementById('scanForm').addEventListener('submit', function(e) {
   safeFocus();
 });
 
-// محاولة الحصول على القفل: يُمنح فقط إذا كان الصنف غير مقفول أو القفل الحالي انتهت صلاحتيه
 function tryAcquireLock(code) {
   if (!workerName || !code) return;
   var item = itemsData[code];
@@ -401,9 +420,7 @@ function tryAcquireLock(code) {
     }).catch(function(e){});
   }
 }
-
-// تجديد وقت القفل لصاحبه فقط لمنع انتهاء الصلاحية أثناء عمله
-function keepLockAlive(code) {
+  function keepLockAlive(code) {
   if (!workerName || !code) return;
   var item = itemsData[code];
   if (item && item.lock && item.lock.worker === workerName) {
@@ -416,7 +433,6 @@ function keepLockAlive(code) {
   }
 }
 
-// فك القفل عن الصنف
 function unlockCode(code) {
   if (!workerName || !code) return;
   var item = itemsData[code];
@@ -428,7 +444,6 @@ function unlockCode(code) {
   }
 }
 
-// فحص القفل: يعتبر القفل سارياً لـ 15 ثانية كاملة
 function getActiveLockWorker(row) {
   if (row && row.lock && row.lock.worker && row.lock.worker !== workerName) {
     if (Date.now() - row.lock.timestamp < 15000) {
