@@ -27,27 +27,26 @@ jobs:
           npm install -g cordova
           cordova create worker_app com.branchprep.worker "BranchPrep Worker"
           
-          # نسخ ملفات الفرونت اند
+          # نسخ ملفات الموقع
           cp -r index.html worker_app/www/ 2>/dev/null || true
           cp -r *.html *.js *.css worker_app/www/ 2>/dev/null || true
           cp -r *.png worker_app/www/ 2>/dev/null || true
           
           cd worker_app
           
-          # إعدادات إخفاء الشاشة الافتراضية
-          sed -i '/<\/widget>/i \    <preference name="ShowSplashScreen" value="false" />\n    <preference name="SplashScreenDelay" value="0" />' config.xml
+          # إعدادات إلغاء شاشة السلاش من config.xml
+          sed -i '/<\/widget>/i \    <preference name="ShowSplashScreen" value="false" />\n    <preference name="SplashScreenDelay" value="0" />\n    <preference name="FadeSplashScreen" value="false" />' config.xml
           
           cordova platform add android
           
-          # استبدال كل أيقونات النظام وشاشات أندرويد الحديثة (Android 12 Splash) بـ icon-192.png
+          # 1. تثبيت الأيقونة الخارجية (icon-192.png) بشكل صحيح بدون المساس بإعدادات XML
           if [ -f www/icon-192.png ]; then
             find platforms/android/ -name "ic_launcher*.png" -exec cp www/icon-192.png {} \;
-            find platforms/android/ -name "ic_cdv_splashscreen*.png" -exec cp www/icon-192.png {} \;
-            find platforms/android/ -name "splash*.png" -exec cp www/icon-192.png {} \;
-            
-            # استبدال أي ملف vector خلفيته الروبوت بصورتك
-            find platforms/android/ -name "ic_cdv_splashscreen.xml" -exec cp www/icon-192.png {} \; 2>/dev/null || true
           fi
+
+          # 2. حذف ملفات الروبوت الرمادي XML تماماً حتى لا يجدها النظام عند الفتح
+          find platforms/android/ -name "ic_cdv_splashscreen.xml" -delete 2>/dev/null || true
+          find platforms/android/ -name "ic_cdv_splashscreen.png" -delete 2>/dev/null || true
 
           cordova build android --debug
 
