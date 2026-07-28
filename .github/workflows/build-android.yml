@@ -27,26 +27,22 @@ jobs:
           npm install -g cordova
           cordova create worker_app com.branchprep.worker "BranchPrep Worker"
           
-          # نسخ ملفات الموقع
+          # نسخ كل ملفاتك
           cp -r index.html worker_app/www/ 2>/dev/null || true
           cp -r *.html *.js *.css worker_app/www/ 2>/dev/null || true
           cp -r *.png worker_app/www/ 2>/dev/null || true
           
           cd worker_app
           
-          # إعدادات إلغاء شاشة السلاش من config.xml
-          sed -i '/<\/widget>/i \    <preference name="ShowSplashScreen" value="false" />\n    <preference name="SplashScreenDelay" value="0" />\n    <preference name="FadeSplashScreen" value="false" />' config.xml
+          # إدراج إعدادات الأيقونة وإلغاء الـ Splash Screen رسمياً في config.xml
+          sed -i '/<\/widget>/i \    <icon src="www/icon-192.png" />\n    <preference name="ShowSplashScreen" value="false" />\n    <preference name="SplashScreen" value="none" />\n    <preference name="SplashScreenDelay" value="0" />\n    <preference name="ShowSplashScreenSpinner" value="false" />' config.xml
           
           cordova platform add android
           
-          # 1. تثبيت الأيقونة الخارجية (icon-192.png) بشكل صحيح بدون المساس بإعدادات XML
+          # استبدال أيقونات النظام بالأيقونة الخاصة بك
           if [ -f www/icon-192.png ]; then
             find platforms/android/ -name "ic_launcher*.png" -exec cp www/icon-192.png {} \;
           fi
-
-          # 2. حذف ملفات الروبوت الرمادي XML تماماً حتى لا يجدها النظام عند الفتح
-          find platforms/android/ -name "ic_cdv_splashscreen.xml" -delete 2>/dev/null || true
-          find platforms/android/ -name "ic_cdv_splashscreen.png" -delete 2>/dev/null || true
 
           cordova build android --debug
 
