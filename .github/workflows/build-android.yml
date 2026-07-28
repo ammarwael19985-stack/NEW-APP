@@ -22,19 +22,18 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Build Android APK using Capacitor
+      - name: Build Android APK
         run: |
-          npm init -y
-          npm install @capacitor/core @capacitor/cli @capacitor/android
-          npx cap init "BranchPrep Worker" "com.branchprep.worker" --web-dir .
-          npx cap add android
-          npx cap copy
-          cd android
-          chmod +x gradlew
-          ./gradlew assembleDebug
+          npm install -g cordova
+          cordova create worker_app com.branchprep.worker "BranchPrep Worker"
+          cp -r index.html worker_app/www/ 2>/dev/null || true
+          cp -r *.html *.js *.css worker_app/www/ 2>/dev/null || true
+          cd worker_app
+          cordova platform add android
+          cordova build android --debug
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: BranchPrep-Worker-Android-APK
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: worker_app/platforms/android/app/build/outputs/apk/debug/app-debug.apk
