@@ -27,26 +27,27 @@ jobs:
           npm install -g cordova
           cordova create worker_app com.branchprep.worker "BranchPrep Worker"
           
-          # نسخ كل ملفات الموقع
           cp -r index.html worker_app/www/ 2>/dev/null || true
           cp -r *.html *.js *.css worker_app/www/ 2>/dev/null || true
           cp -r *.png worker_app/www/ 2>/dev/null || true
           
           cd worker_app
           
-          # إلغاء شاشات الترحيب والسبينر واللوجو الرمادي
-          sed -i '/<\/widget>/i \    <preference name="ShowSplashScreen" value="false" />\n    <preference name="ShowSplashScreenSpinner" value="false" />\n    <preference name="SplashScreen" value="none" />\n    <preference name="SplashScreenDelay" value="0" />' config.xml
+          # إلغاء شاشات كوردوفا بالكامل
+          sed -i '/<\/widget>/i \    <preference name="ShowSplashScreen" value="false" />\n    <preference name="SplashScreen" value="none" />\n    <preference name="SplashScreenDelay" value="0" />' config.xml
           
           cordova platform add android
           
-          # 1. استبدال كل الأيقونات التقليدية والأيقونات التكيفية (Adaptive Icons) بـ icon-192.png
+          # مسح ملفات الـ Vector XML الافتراضية (اللي جواها الروبوت الرمادي)
+          find platforms/android/app/src/main/res/ -name "ic_launcher_foreground.xml" -delete 2>/dev/null || true
+          find platforms/android/app/src/main/res/ -name "ic_launcher_background.xml" -delete 2>/dev/null || true
+          find platforms/android/app/src/main/res/ -name "ic_cdv_splashscreen.xml" -delete 2>/dev/null || true
+          
+          # استبدال كل صور PNG في كل المجلدات بأيقونتك الصغيرة المظبوطة
           if [ -f www/icon-192.png ]; then
-            find platforms/android/ -name "ic_launcher*.png" -exec cp www/icon-192.png {} \;
-            find platforms/android/ -name "ic_launcher_foreground.png" -exec cp www/icon-192.png {} \;
+            find platforms/android/app/src/main/res/ -name "ic_launcher*.png" -exec cp www/icon-192.png {} \;
+            find platforms/android/app/src/main/res/ -name "ic_cdv_splashscreen*.png" -exec cp www/icon-192.png {} \;
           fi
-
-          # 2. مسح ملفات الروبوت الرمادي نهائياً وإبدالها
-          find platforms/android/ -name "ic_cdv_splashscreen*.png" -exec cp www/icon-192.png {} \; 2>/dev/null || true
 
           cordova build android --debug
 
