@@ -1,7 +1,7 @@
 name: Build Windows Desktop App (EXE)
 
 on:
-  workflow_dispatch: # يتيح لك تشغيل البناء بضغطة زرار في أي وقت
+  workflow_dispatch:
 
 jobs:
   build-windows-exe:
@@ -21,10 +21,10 @@ jobs:
 
       - name: Build EXE File
         run: |
-          nativefier --name "BranchPrep Central" "https://ammarwael19985-stack.github.io/NEW-APP/admin.html" --icon "admin-icon-512.png" --single-instance --portable --out build_output
+          nativefier --name "BranchPrep Central" "https://ammarwael19985-stack.github.io/NEW-APP/admin.html" --icon "admin-icon-512.png" --portable --out app_dist
 
       - name: Upload EXE Artifact
         uses: actions/upload-artifact@v4
         with:
           name: BranchPrep-Central-Windows-App
-          path: build_output/
+          path: app_dist/
