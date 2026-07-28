@@ -1,4 +1,4 @@
-name: Build Android App (APK)
+Name: Build Android App (APK)
 
 on:
   workflow_dispatch:
@@ -27,23 +27,32 @@ jobs:
           npm install -g cordova
           cordova create worker_app com.branchprep.worker "BranchPrep Worker"
           
-          # نسخ كل ملفاتك
           cp -r index.html worker_app/www/ 2>/dev/null || true
           cp -r *.html *.js *.css worker_app/www/ 2>/dev/null || true
           cp -r *.png worker_app/www/ 2>/dev/null || true
           
           cd worker_app
           
-          # إدراج إعدادات الأيقونة وإلغاء الـ Splash Screen رسمياً في config.xml
-          sed -i '/<\/widget>/i \    <icon src="www/icon-192.png" />\n    <preference name="ShowSplashScreen" value="false" />\n    <preference name="SplashScreen" value="none" />\n    <preference name="SplashScreenDelay" value="0" />\n    <preference name="ShowSplashScreenSpinner" value="false" />' config.xml
+          # 1. إعدادات config.xml للأيقونة واللون الأخضر
+          sed -i '/<\/widget>/i \    <icon src="www/icon-192.png" />\n    <preference name="ShowSplashScreen" value="false" />\n    <preference name="SplashScreen" value="none" />\n    <preference name="SplashScreenDelay" value="0" />\n    <preference name="ShowSplashScreenSpinner" value="false" />\n    <preference name="BackgroundColor" value="0xff1f6f5c" />' config.xml
           
           cordova platform add android
           
-          # استبدال أيقونات النظام بالأيقونة الخاصة بك
+          # 2. استبدال أيقونات النظام الخارجية بـ icon-192.png
           if [ -f www/icon-192.png ]; then
             find platforms/android/ -name "ic_launcher*.png" -exec cp www/icon-192.png {} \;
           fi
-
+          
+          # 3. إخفاء شاشة الأندرويد الرمادية واستبدالها بالأيقونة واللون الأخضر
+          GREEN_COLOR="#1f6f5c"
+          
+          # تعديل ألوان الشاشة المبدئية
+          find platforms/android/app/src/main/res -name "cdv_colors.xml" -exec sed -i "s|<color name=\"cdv_background_color\">.*</color>|<color name=\"cdv_background_color\">${GREEN_COLOR}</color>|" {} \; 2>/dev/null || true
+          
+          # تحويل شعار النظام المبدئي من الروبوت الرمادي لأيقونتك الخضراء مباشرة
+          find platforms/android/app/src/main/res -name "cdv_themes.xml" -exec sed -i 's|@drawable/ic_cdv_splashscreen|@mipmap/ic_launcher|g' {} \; 2>/dev/null || true
+          find platforms/android/app/src/main/res -name "cdv_themes.xml" -exec sed -i 's|windowSplashScreenAnimationDuration">200|windowSplashScreenAnimationDuration">0|g' {} \; 2>/dev/null || true
+          
           cordova build android --debug
 
       - name: Upload APK Artifact
