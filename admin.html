@@ -417,7 +417,7 @@ function updateDashboardUI(orderData) {
   if (workersArr.length > 0) {
     workersContainer.innerHTML = workersArr.map(w => `<span class="worker-badge">${w}</span>`).join('');
   } else {
-    workersContainer.innerHTML = `<span style="color:#888; font-size:0.85rem;">لا يوجد عمال متواجدين حالياً</span>`;
+    workersContainer.innerHTML = `<span style="color:#888; font-size:0.85rem;">لا يوجد موظفين متواجدين حالياً</span>`;
   }
 
   if (!hasVisibleItems) {
