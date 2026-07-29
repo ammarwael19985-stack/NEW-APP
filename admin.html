@@ -178,21 +178,17 @@
 const DB_URL = "https://branchprep-default-rtdb.firebaseio.com";
 let currentActiveCode = localStorage.getItem('bp_admin_code') || null;
 let currentItemsData = null;
-let eventSource = null;
+let monitorInterval = null;
 
 window.addEventListener('DOMContentLoaded', () => {
   if (currentActiveCode) showDashboard(currentActiveCode);
-});
-
-// إغلاق أي اتصال مفتوح عند مغادرة الصفحة لتوفير الـ Bandwidth
-window.addEventListener('beforeunload', () => {
-  if(eventSource) eventSource.close();
 });
 
 function showDashboard(code) {
   document.getElementById('uploadCard').classList.add('hidden');
   document.getElementById('liveDashboard').classList.remove('hidden');
   document.getElementById('orderCodeDisplay').textContent = code;
+  fetchOrderData(code);
   startLiveMonitoring(code);
 }
 
@@ -319,14 +315,11 @@ async function processExcelData(rows) {
 }
 
 function startLiveMonitoring(orderCode) {
-  if(eventSource) eventSource.close();
-  eventSource = new EventSource(`${DB_URL}/orders/${orderCode}.json`);
-  eventSource.onmessage = function(e) {
-    const data = JSON.parse(e.data);
-    if(data) {
-      updateDashboardUI(data);
-    }
-  };
+  if(monitorInterval) clearInterval(monitorInterval);
+  // سحب البيانات تلقائياً كل ثانيتين بشكل خفيف وسريع مضمون
+  monitorInterval = setInterval(() => {
+    fetchOrderData(orderCode);
+  }, 2000);
 }
 
 function updateDashboardUI(orderData) {
@@ -445,7 +438,7 @@ function updateDashboardUI(orderData) {
   document.getElementById('totalQtyBar').style.width = `${totalQtyPercent}%`;
 }
 
-// دالة تصدير الإكسيل بدون إهدار استهلاك الشبكة
+// تصدير الإكسيل بدون استهلاك شبكة زيادة
 async function exportToExcel(onlyPending) {
   if (!currentActiveCode) return alert('لا توجد طلبية نشطة!');
   
@@ -455,8 +448,8 @@ async function exportToExcel(onlyPending) {
   btn.disabled = true;
 
   try {
-    // نعتمد مباشرة على البيانات المحفوظة محلياً لعدم إجراء طلب جديد للسيرفر
-    const items = currentItemsData || (await fetchOrderData(currentActiveCode))?.items;
+    const freshData = await fetchOrderData(currentActiveCode);
+    const items = (freshData && freshData.items) ? freshData.items : currentItemsData;
 
     if (!items) {
       alert('لا توجد بيانات لتصديرها!');
@@ -577,7 +570,7 @@ function showDownloadToast(fileName) {
 
 function resetCurrentOrder() {
   if(confirm('هل تريد الخروج من شاشة متابعة هذه الطلبية؟ (يمكنك العودة إليها لاحقاً بكتابة الكود)')) {
-    if(eventSource) eventSource.close();
+    if(monitorInterval) clearInterval(monitorInterval);
     localStorage.removeItem('bp_admin_code');
     location.reload();
   }
