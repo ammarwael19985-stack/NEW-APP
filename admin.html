@@ -184,11 +184,15 @@ window.addEventListener('DOMContentLoaded', () => {
   if (currentActiveCode) showDashboard(currentActiveCode);
 });
 
+// إغلاق أي اتصال مفتوح عند مغادرة الصفحة لتوفير الـ Bandwidth
+window.addEventListener('beforeunload', () => {
+  if(eventSource) eventSource.close();
+});
+
 function showDashboard(code) {
   document.getElementById('uploadCard').classList.add('hidden');
   document.getElementById('liveDashboard').classList.remove('hidden');
   document.getElementById('orderCodeDisplay').textContent = code;
-  fetchOrderData(code);
   startLiveMonitoring(code);
 }
 
@@ -441,7 +445,7 @@ function updateDashboardUI(orderData) {
   document.getElementById('totalQtyBar').style.width = `${totalQtyPercent}%`;
 }
 
-// دالة تصدير الإكسيل المتوافقة 100% مع برامج الـ EXE وبدون رسائل حظر أمني
+// دالة تصدير الإكسيل بدون إهدار استهلاك الشبكة
 async function exportToExcel(onlyPending) {
   if (!currentActiveCode) return alert('لا توجد طلبية نشطة!');
   
@@ -451,8 +455,8 @@ async function exportToExcel(onlyPending) {
   btn.disabled = true;
 
   try {
-    const freshData = await fetchOrderData(currentActiveCode);
-    const items = (freshData && freshData.items) ? freshData.items : currentItemsData;
+    // نعتمد مباشرة على البيانات المحفوظة محلياً لعدم إجراء طلب جديد للسيرفر
+    const items = currentItemsData || (await fetchOrderData(currentActiveCode))?.items;
 
     if (!items) {
       alert('لا توجد بيانات لتصديرها!');
@@ -529,10 +533,7 @@ async function exportToExcel(onlyPending) {
       ? `اصناف_قيد_التحضير_طلبية_${currentActiveCode}.xlsx`
       : `تقرير_طلبية_${currentActiveCode}.xlsx`;
 
-    // تصدير آمن ومباشر
     XLSX.writeFile(workbook, fileName);
-
-    // إظهار شريط النجاح التنبيهي
     showDownloadToast(fileName);
 
   } catch(err) {
@@ -543,7 +544,6 @@ async function exportToExcel(onlyPending) {
   btn.disabled = false;
 }
 
-// شريط التنبيه عند تصدير الملف
 function showDownloadToast(fileName) {
   const existingToast = document.getElementById('excelDownloadToast');
   if (existingToast) existingToast.remove();
@@ -577,6 +577,7 @@ function showDownloadToast(fileName) {
 
 function resetCurrentOrder() {
   if(confirm('هل تريد الخروج من شاشة متابعة هذه الطلبية؟ (يمكنك العودة إليها لاحقاً بكتابة الكود)')) {
+    if(eventSource) eventSource.close();
     localStorage.removeItem('bp_admin_code');
     location.reload();
   }
