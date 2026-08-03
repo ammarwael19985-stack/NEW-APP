@@ -199,10 +199,11 @@ var historyListArr = [];
 var currentCode = null;
 var activeBranch = null;
 var pollInterval = null;
+var fastLockInterval = null;
 
 var isEditingManualInput = false;
 var localModifiedBranches = {};
-var lastLocalServerTime = 0; // لتقليل استهلاك البيانات الذكي
+var lastLocalServerTime = 0;
 
 try {
   workerName = localStorage.getItem('bp_worker') || "";
@@ -260,13 +261,29 @@ function openScanScreen() {
   document.getElementById('statusTag').textContent = 'جاهز للمسح';
   safeFocus();
 
-  // تكرار ذكي وفائق التوفير للبيانات كل 10 ثواني
+  // 1. تكرار سحب الملفات الذكي كل 10 ثواني (توفير فائق)
   if (!pollInterval) {
     pollInterval = setInterval(function() {
       fetchLatestData(false);
       sendSessionHeartbeat();
       if(currentCode) keepLockAlive(currentCode);
     }, 10000);
+  }
+
+  // 2. فحص سريع وصغير جداً (30 بايت) للقفل فقط كل ثانيتين لسرعة التنبيه الأحمر
+  if (!fastLockInterval) {
+    fastLockInterval = setInterval(function() {
+      if (currentCode && orderCode) {
+        fetch(DB_URL + '/orders/' + orderCode + '/items/' + currentCode + '/lock.json')
+          .then(function(res) { return res.json(); })
+          .then(function(lockData) {
+            if (itemsData[currentCode]) {
+              itemsData[currentCode].lock = lockData;
+              renderResult(currentCode, itemsData[currentCode], activeBranch);
+            }
+          }).catch(function(e){});
+      }
+    }, 2000);
   }
 }
 
@@ -288,15 +305,15 @@ function notifyServerDataChanged() {
     body: JSON.stringify(Date.now())
   }).catch(function(e){});
 }
-  function fetchLatestData(force) {
+
+function fetchLatestData(force) {
   if (!orderCode) return;
 
-  // فحص ذكي أولاً لمعرفة هل حدث أي تغيير بالسيرفر قبل سحب البيانات الكبيرة
   fetch(DB_URL + '/orders/' + orderCode + '/_lastUpdated.json')
     .then(function(res) { return res.json(); })
     .then(function(serverTime) {
       if (!force && serverTime && serverTime === lastLocalServerTime) {
-        return; // لم يتغير شيء بالسيرفر، إغلاق الدالة للتوفير الفائق للبيانات
+        return;
       }
       if (serverTime) lastLocalServerTime = serverTime;
 
@@ -352,6 +369,7 @@ function logout() {
   var confirmExit = confirm("هل أنت تأكد من تسجيل الخروج؟");
   if (confirmExit) {
     if (pollInterval) clearInterval(pollInterval);
+    if (fastLockInterval) clearInterval(fastLockInterval);
     if (workerName && orderCode) {
       var cleanKey = workerName.replace(/[.#$\[\]]/g, "_");
       fetch(DB_URL + '/orders/' + orderCode + '/activeSessions/' + cleanKey + '.json', { method: 'DELETE' }).catch(function(e){});
@@ -414,7 +432,6 @@ document.getElementById('scanForm').addEventListener('submit', function(e) {
     document.getElementById('workerWarning').style.display = 'none';
     document.getElementById('notFoundBox').innerHTML = 'الباركود ده مش موجود في الطلبية <span class="code">' + escapeHtml(code) + '</span>';
   }
-
   barcodeInput.value = '';
   safeFocus();
 });
