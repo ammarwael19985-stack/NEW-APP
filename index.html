@@ -163,7 +163,7 @@
 
   <div id="scanScreen" style="display:none;">
     <div class="status-bar">
-      <span>االموظف: <b id="workerLabel">-</b> | الطلبية: <b id="codeLabel">-</b></span>
+      <span>الموظف: <b id="workerLabel">-</b> | الطلبية: <b id="codeLabel">-</b></span>
       <div>
         <button id="logoutBtn" onclick="logout()">🚪 خروج</button>
       </div>
@@ -202,6 +202,7 @@ var pollInterval = null;
 
 var isEditingManualInput = false;
 var localModifiedBranches = {};
+var lastLocalServerTime = 0; // لتقليل استهلاك البيانات الذكي
 
 try {
   workerName = localStorage.getItem('bp_worker') || "";
@@ -218,7 +219,7 @@ window.onload = function() {
       document.getElementById('workerNameInput').value = workerName;
       document.getElementById('orderCodeInput').value = orderCode;
       openScanScreen();
-      fetchLatestData();
+      fetchLatestData(true);
     }
   } catch(e) {}
 };
@@ -245,7 +246,7 @@ function loginToOrder() {
     } catch(e){}
 
     openScanScreen();
-    fetchLatestData();
+    fetchLatestData(true);
   } catch(e) {
     alert("حدث خطأ في التسجيل، جرب مرة أخرى.");
   }
@@ -259,13 +260,13 @@ function openScanScreen() {
   document.getElementById('statusTag').textContent = 'جاهز للمسح';
   safeFocus();
 
-  // تم تعديل المراقبة لتبدأ كل 5 ثواني لتقليل استهلاك البيانات
+  // تكرار ذكي وفائق التوفير للبيانات كل 10 ثواني
   if (!pollInterval) {
     pollInterval = setInterval(function() {
-      fetchLatestData();
+      fetchLatestData(false);
       sendSessionHeartbeat();
       if(currentCode) keepLockAlive(currentCode);
-    }, 5000);
+    }, 10000);
   }
 }
 
@@ -279,54 +280,72 @@ function sendSessionHeartbeat() {
   }).catch(function(e){});
 }
 
-function fetchLatestData() {
+function notifyServerDataChanged() {
+  if (!orderCode) return;
+  fetch(DB_URL + '/orders/' + orderCode + '/_lastUpdated.json', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(Date.now())
+  }).catch(function(e){});
+}
+  function fetchLatestData(force) {
   if (!orderCode) return;
 
-  fetch(DB_URL + '/orders/' + orderCode + '.json')
+  // فحص ذكي أولاً لمعرفة هل حدث أي تغيير بالسيرفر قبل سحب البيانات الكبيرة
+  fetch(DB_URL + '/orders/' + orderCode + '/_lastUpdated.json')
     .then(function(res) { return res.json(); })
-    .then(function(data) {
-      if (data && data.items) {
-        Object.keys(data.items).forEach(function(codeKey) {
-          if (!itemsData[codeKey]) {
-            itemsData[codeKey] = data.items[codeKey];
-          } else {
-            itemsData[codeKey].product = data.items[codeKey].product;
-            itemsData[codeKey].lock = data.items[codeKey].lock;
-            
-            var sBranches = data.items[codeKey].branches || {};
-            if (!itemsData[codeKey].branches) itemsData[codeKey].branches = {};
+    .then(function(serverTime) {
+      if (!force && serverTime && serverTime === lastLocalServerTime) {
+        return; // لم يتغير شيء بالسيرفر، إغلاق الدالة للتوفير الفائق للبيانات
+      }
+      if (serverTime) lastLocalServerTime = serverTime;
 
-            Object.keys(sBranches).forEach(function(bName) {
-              var modKey = codeKey + "_" + bName;
-              if (!itemsData[codeKey].branches[bName]) {
-                itemsData[codeKey].branches[bName] = sBranches[bName];
+      fetch(DB_URL + '/orders/' + orderCode + '.json')
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          if (data && data.items) {
+            Object.keys(data.items).forEach(function(codeKey) {
+              if (!itemsData[codeKey]) {
+                itemsData[codeKey] = data.items[codeKey];
               } else {
-                itemsData[codeKey].branches[bName].target = sBranches[bName].target;
-                if (!localModifiedBranches[modKey]) {
-                  itemsData[codeKey].branches[bName].actual = sBranches[bName].actual;
-                  itemsData[codeKey].branches[bName].worker = sBranches[bName].worker;
-                }
+                itemsData[codeKey].product = data.items[codeKey].product;
+                itemsData[codeKey].lock = data.items[codeKey].lock;
+                
+                var sBranches = data.items[codeKey].branches || {};
+                if (!itemsData[codeKey].branches) itemsData[codeKey].branches = {};
+
+                Object.keys(sBranches).forEach(function(bName) {
+                  var modKey = codeKey + "_" + bName;
+                  if (!itemsData[codeKey].branches[bName]) {
+                    itemsData[codeKey].branches[bName] = sBranches[bName];
+                  } else {
+                    itemsData[codeKey].branches[bName].target = sBranches[bName].target;
+                    if (!localModifiedBranches[modKey]) {
+                      itemsData[codeKey].branches[bName].actual = sBranches[bName].actual;
+                      itemsData[codeKey].branches[bName].worker = sBranches[bName].worker;
+                    }
+                  }
+                });
               }
             });
-          }
-        });
 
-        var branchesSet = {};
-        Object.keys(itemsData).forEach(function(k) {
-          var item = itemsData[k];
-          if (item && item.branches) {
-            Object.keys(item.branches).forEach(function(b) { branchesSet[b] = true; });
+            var branchesSet = {};
+            Object.keys(itemsData).forEach(function(k) {
+              var item = itemsData[k];
+              if (item && item.branches) {
+                Object.keys(item.branches).forEach(function(b) { branchesSet[b] = true; });
+              }
+            });
+            branchNames = Object.keys(branchesSet);
+            document.getElementById('statusTag').textContent = 'جاهز للمسح';
+            
+            if (currentCode && itemsData[currentCode] && !isEditingManualInput) {
+              renderResult(currentCode, itemsData[currentCode], activeBranch);
+            }
           }
-        });
-        branchNames = Object.keys(branchesSet);
-        document.getElementById('statusTag').textContent = 'جاهز للمسح';
-        
-        if (currentCode && itemsData[currentCode] && !isEditingManualInput) {
-          renderResult(currentCode, itemsData[currentCode], activeBranch);
-        }
-      }
-    })
-    .catch(function(err) {});
+        })
+        .catch(function(err) {});
+    }).catch(function(e){});
 }
 
 function logout() {
@@ -346,7 +365,8 @@ function logout() {
     location.reload();
   }
 }
-  function safeFocus() {
+
+function safeFocus() {
   if (isEditingManualInput) return;
   setTimeout(function() {
     barcodeInput.setAttribute('inputmode', 'none');
@@ -414,6 +434,8 @@ function tryAcquireLock(code) {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(lockData)
+    }).then(function() {
+      notifyServerDataChanged();
     }).catch(function(e){});
   }
 }
@@ -438,13 +460,15 @@ function unlockCode(code) {
     delete item.lock;
     fetch(DB_URL + '/orders/' + orderCode + '/items/' + code + '/lock.json', {
       method: 'DELETE'
+    }).then(function() {
+      notifyServerDataChanged();
     }).catch(function(e){});
   }
 }
 
 function getActiveLockWorker(row) {
   if (row && row.lock && row.lock.worker && row.lock.worker !== workerName) {
-    if (Date.now() - row.lock.timestamp < 15000) {
+    if (Date.now() - row.lock.timestamp < 35000) {
       return row.lock.worker;
     }
   }
@@ -558,6 +582,7 @@ function updateBranchActual(code, branch, val, skipRender) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ actual: val, worker: workerName })
   }).then(function() {
+    notifyServerDataChanged();
     setTimeout(function() { delete localModifiedBranches[modKey]; }, 3000);
   }).catch(function(e){});
 }
