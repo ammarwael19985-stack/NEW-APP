@@ -153,8 +153,8 @@
   <div id="loginScreen">
     <div class="login-card">
       <h2 style="margin-top:0;">مرحباً بك 📦</h2>
-      <p style="color:var(--muted); font-size:0.85rem; margin-bottom:20px;">ادخل اسمك وكود الطلبية من الكمبيوتر للبدء</p>
-      <input type="text" id="workerNameInput" placeholder="اسم العامل (مثال: عمار)" />
+      <p style="color:var(--muted); font-size:0.85rem; margin-bottom:20px;">ادخل اسمك وكود الطلبية للبدء</p>
+      <input type="text" id="workerNameInput" placeholder="اسم الموظف (مثال: عمار)" />
       <input type="number" id="orderCodeInput" placeholder="كود الطلبية (4 أرقام)" />
       <button class="file-btn" id="loginBtn" type="button" onclick="loginToOrder()">دخول للتحضير 🚀</button>
       <div class="error-msg" id="loginError"></div>
@@ -163,7 +163,7 @@
 
   <div id="scanScreen" style="display:none;">
     <div class="status-bar">
-      <span>العامل: <b id="workerLabel">-</b> | الطلبية: <b id="codeLabel">-</b></span>
+      <span>االموظف: <b id="workerLabel">-</b> | الطلبية: <b id="codeLabel">-</b></span>
       <div>
         <button id="logoutBtn" onclick="logout()">🚪 خروج</button>
       </div>
@@ -172,13 +172,13 @@
     <div class="scan-box">
       <label>اضرب الباركود دلوقتي</label>
       <form id="scanForm">
-        <input type="text" id="barcodeInput" inputmode="none" placeholder="امسح الباركود واضغط Enter" autocomplete="off" />
+        <input type="text" id="barcodeInput" inputmode="none" placeholder="امسح الباركود " autocomplete="off" />
       </form>
     </div>
 
     <div id="workerWarning" class="worker-warning"></div>
 
-    <div id="placeholder" class="placeholder">استنى مسح أول باركود عشان تطلعلك الكميات هنا</div>
+    <div id="placeholder" class="placeholder">فى انتظار مسح أول باركود عشان تطلعلك الكميات هنا</div>
     <div id="resultBox" class="result" style="display:none;"></div>
     <div id="notFoundBox" class="not-found" style="display:none;"></div>
 
@@ -465,7 +465,7 @@ function renderResult(code, row, focusBranch) {
   var warnBox = document.getElementById('workerWarning');
   if (isReadOnly) {
     warnBox.style.display = 'block';
-    warnBox.innerHTML = '🔒 <b>تنبيه:</b> العامل (<b>' + escapeHtml(lockWorker) + '</b>) متواجد شغال على هذا المنتج حالياً!<br><small style="font-weight:normal;">التعديل مقفول عليك نهائياً ومتاح فقط للعامل (<b>' + escapeHtml(lockWorker) + '</b>).</small>';
+    warnBox.innerHTML = '🔒 <b>تنبيه:</b> الموظف (<b>' + escapeHtml(lockWorker) + '</b>) متواجد شغال على هذا المنتج حالياً!<br><small style="font-weight:normal;">التعديل مقفول عليك حالياً ومتاح فقط للموظف (<b>' + escapeHtml(lockWorker) + '</b>).</small>';
   } else {
     warnBox.style.display = 'none';
   }
