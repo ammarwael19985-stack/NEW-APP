@@ -316,10 +316,10 @@ async function processExcelData(rows) {
 
 function startLiveMonitoring(orderCode) {
   if(monitorInterval) clearInterval(monitorInterval);
-  // سحب البيانات تلقائياً كل ثانيتين بشكل خفيف وسريع مضمون
+  // تم تعديل المراقبة لتبدأ كل 8 ثواني لتقليل الاستهلاك وحماية الباقة
   monitorInterval = setInterval(() => {
     fetchOrderData(orderCode);
-  }, 2000);
+  }, 8000);
 }
 
 function updateDashboardUI(orderData) {
@@ -344,7 +344,7 @@ function updateDashboardUI(orderData) {
   Object.keys(sessions).forEach(sKey => {
     const sess = sessions[sKey];
     if (sess && sess.name && sess.timestamp) {
-      if (Date.now() - sess.timestamp < 6000) {
+      if (Date.now() - sess.timestamp < 15000) {
         activeWorkersMap[sess.name] = true;
       }
     }
@@ -358,7 +358,7 @@ function updateDashboardUI(orderData) {
     let isBeingPrepared = false;
 
     if (item.lock && item.lock.worker && item.lock.timestamp) {
-      if (Date.now() - item.lock.timestamp < 6000) {
+      if (Date.now() - item.lock.timestamp < 15000) {
         activeWorkersMap[item.lock.worker] = true;
       }
     }
@@ -392,7 +392,7 @@ function updateDashboardUI(orderData) {
       }
     }
 
-    if (!isBeingPrepared && !(item.lock && Date.now() - item.lock.timestamp < 6000)) return;
+    if (!isBeingPrepared && !(item.lock && Date.now() - item.lock.timestamp < 15000)) return;
 
     hasVisibleItems = true;
     const tr = document.createElement('tr');
@@ -438,7 +438,6 @@ function updateDashboardUI(orderData) {
   document.getElementById('totalQtyBar').style.width = `${totalQtyPercent}%`;
 }
 
-// تصدير الإكسيل بدون استهلاك شبكة زيادة
 async function exportToExcel(onlyPending) {
   if (!currentActiveCode) return alert('لا توجد طلبية نشطة!');
   
