@@ -179,6 +179,7 @@ const DB_URL = "https://branchprep-default-rtdb.firebaseio.com";
 let currentActiveCode = localStorage.getItem('bp_admin_code') || null;
 let currentItemsData = null;
 let monitorInterval = null;
+let lastAdminServerTime = 0; // لتقليل استهلاك البيانات في الأدمن
 
 window.addEventListener('DOMContentLoaded', () => {
   if (currentActiveCode) showDashboard(currentActiveCode);
@@ -188,7 +189,7 @@ function showDashboard(code) {
   document.getElementById('uploadCard').classList.add('hidden');
   document.getElementById('liveDashboard').classList.remove('hidden');
   document.getElementById('orderCodeDisplay').textContent = code;
-  fetchOrderData(code);
+  fetchOrderData(code, true);
   startLiveMonitoring(code);
 }
 
@@ -217,8 +218,17 @@ async function openExistingOrder() {
   }
 }
 
-async function fetchOrderData(code) {
+async function fetchOrderData(code, force) {
   try {
+    // فحص ذكي أولاً لمعرفة هل حدث تغيير بالسيرفر قبل سحب الطلبية الكاملة
+    const timeRes = await fetch(`${DB_URL}/orders/${code}/_lastUpdated.json`);
+    const serverTime = await timeRes.json();
+
+    if (!force && serverTime && serverTime === lastAdminServerTime) {
+      return null; // عدم السحب لتوفير البيانات
+    }
+    if (serverTime) lastAdminServerTime = serverTime;
+
     const res = await fetch(`${DB_URL}/orders/${code}.json`);
     const data = await res.json();
     if (data) {
@@ -300,7 +310,11 @@ async function processExcelData(rows) {
     const res = await fetch(`${DB_URL}/orders/${orderCode}.json`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ createdAt: new Date().toISOString(), items: items })
+      body: JSON.stringify({ 
+        createdAt: new Date().toISOString(), 
+        _lastUpdated: Date.now(),
+        items: items 
+      })
     });
 
     if (res.ok) {
@@ -316,10 +330,10 @@ async function processExcelData(rows) {
 
 function startLiveMonitoring(orderCode) {
   if(monitorInterval) clearInterval(monitorInterval);
-  // تم تعديل المراقبة لتبدأ كل 8 ثواني لتقليل الاستهلاك وحماية الباقة
+  // فحص موفر للغاية كل 10 ثواني
   monitorInterval = setInterval(() => {
-    fetchOrderData(orderCode);
-  }, 8000);
+    fetchOrderData(orderCode, false);
+  }, 10000);
 }
 
 function updateDashboardUI(orderData) {
@@ -344,7 +358,7 @@ function updateDashboardUI(orderData) {
   Object.keys(sessions).forEach(sKey => {
     const sess = sessions[sKey];
     if (sess && sess.name && sess.timestamp) {
-      if (Date.now() - sess.timestamp < 15000) {
+      if (Date.now() - sess.timestamp < 35000) {
         activeWorkersMap[sess.name] = true;
       }
     }
@@ -358,7 +372,7 @@ function updateDashboardUI(orderData) {
     let isBeingPrepared = false;
 
     if (item.lock && item.lock.worker && item.lock.timestamp) {
-      if (Date.now() - item.lock.timestamp < 15000) {
+      if (Date.now() - item.lock.timestamp < 35000) {
         activeWorkersMap[item.lock.worker] = true;
       }
     }
@@ -392,7 +406,7 @@ function updateDashboardUI(orderData) {
       }
     }
 
-    if (!isBeingPrepared && !(item.lock && Date.now() - item.lock.timestamp < 15000)) return;
+    if (!isBeingPrepared && !(item.lock && Date.now() - item.lock.timestamp < 35000)) return;
 
     hasVisibleItems = true;
     const tr = document.createElement('tr');
@@ -447,7 +461,7 @@ async function exportToExcel(onlyPending) {
   btn.disabled = true;
 
   try {
-    const freshData = await fetchOrderData(currentActiveCode);
+    const freshData = await fetchOrderData(currentActiveCode, true);
     const items = (freshData && freshData.items) ? freshData.items : currentItemsData;
 
     if (!items) {
