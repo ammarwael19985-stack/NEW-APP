@@ -223,7 +223,6 @@ window.onload = function() {
       document.getElementById('workerNameInput').value = workerName;
       document.getElementById('orderCodeInput').value = orderCode;
       
-      // التثبت التلقائي من وجود الطلبية عند الفتح المباشر
       fetch(DB_URL + '/orders/' + orderCode + '.json')
         .then(function(res) { return res.json(); })
         .then(function(data) {
@@ -256,7 +255,6 @@ function loginToOrder() {
     loginBtn.disabled = true;
     loginBtn.textContent = 'جاري التحقق من الطلبية... ⏳';
 
-    // فحص مباشر لقاعدة البيانات للتأكد من صحة كود الطلبية
     fetch(DB_URL + '/orders/' + oCode + '.json')
       .then(function(res) { return res.json(); })
       .then(function(data) {
@@ -321,7 +319,8 @@ function openScanScreen() {
     }, 2000);
   }
 }
-  function sendSessionHeartbeat() {
+
+function sendSessionHeartbeat() {
   if (!workerName || !orderCode) return;
   var cleanKey = workerName.replace(/[.#$\[\]]/g, "_");
   fetch(DB_URL + '/orders/' + orderCode + '/activeSessions/' + cleanKey + '.json', {
@@ -419,8 +418,9 @@ function logout() {
 }
 
 function safeFocus() {
-  if (isEditingManualInput) return;
+  if (isEditingManualInput || (document.activeElement && document.activeElement.classList.contains('actual-input'))) return;
   setTimeout(function() {
+    if (isEditingManualInput || (document.activeElement && document.activeElement.classList.contains('actual-input'))) return;
     barcodeInput.setAttribute('inputmode', 'none');
     try { barcodeInput.focus({ preventScroll: true }); } catch (e) { barcodeInput.focus(); }
   }, 100);
@@ -490,7 +490,7 @@ function tryAcquireLock(code) {
   }
 }
 
-function keepLockAlive(code) {
+  function keepLockAlive(code) {
   if (!workerName || !code) return;
   var item = itemsData[code];
   if (item && item.lock && item.lock.worker === workerName) {
@@ -655,7 +655,7 @@ resBox.addEventListener('focusout', function(e) {
         isEditingManualInput = false;
         safeFocus();
       }
-    }, 200);
+    }, 300);
   }
 });
 
