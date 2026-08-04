@@ -306,15 +306,13 @@ function openScanScreen() {
 
   if (!fastLockInterval) {
     fastLockInterval = setInterval(function() {
-      // إصلاح: منع تحديث الشاشة أثناء ما الموظف بيكتب في خانة الكمية
-      // عشان الفوكس والكيبورد ميقفلوش من نص الكتابة
       if (isEditingManualInput) return;
 
       if (currentCode && orderCode) {
         fetch(DB_URL + '/orders/' + orderCode + '/items/' + currentCode + '/lock.json')
           .then(function(res) { return res.json(); })
           .then(function(lockData) {
-            if (isEditingManualInput) return; // فحص تاني بعد رجوع الرد لو المستخدم بدأ يكتب أثناء الانتظار
+            if (isEditingManualInput) return;
             if (itemsData[currentCode]) {
               itemsData[currentCode].lock = lockData;
               renderResult(currentCode, itemsData[currentCode], activeBranch);
@@ -423,9 +421,15 @@ function logout() {
 }
 
 function safeFocus() {
-  if (isEditingManualInput || (document.activeElement && document.activeElement.classList.contains('actual-input'))) return;
+  if (isEditingManualInput) return;
+  var activeEl = document.activeElement;
+  if (activeEl && (activeEl.classList.contains('actual-input') || activeEl.tagName === 'INPUT' && activeEl.id !== 'barcodeInput')) return;
+  
   setTimeout(function() {
-    if (isEditingManualInput || (document.activeElement && document.activeElement.classList.contains('actual-input'))) return;
+    if (isEditingManualInput) return;
+    var curr = document.activeElement;
+    if (curr && (curr.classList.contains('actual-input') || curr.tagName === 'INPUT' && curr.id !== 'barcodeInput')) return;
+    
     barcodeInput.setAttribute('inputmode', 'none');
     try { barcodeInput.focus({ preventScroll: true }); } catch (e) { barcodeInput.focus(); }
   }, 100);
@@ -495,7 +499,7 @@ function tryAcquireLock(code) {
   }
 }
 
-  function keepLockAlive(code) {
+function keepLockAlive(code) {
   if (!workerName || !code) return;
   var item = itemsData[code];
   if (item && item.lock && item.lock.worker === workerName) {
@@ -648,6 +652,7 @@ resBox.addEventListener('focusin', function(e) {
   var input = e.target.closest('.actual-input');
   if (input) {
     isEditingManualInput = true;
+    e.stopPropagation();
   }
 });
 
@@ -658,7 +663,6 @@ resBox.addEventListener('focusout', function(e) {
       var currentActive = document.activeElement;
       if (!currentActive || !currentActive.classList.contains('actual-input')) {
         isEditingManualInput = false;
-        safeFocus();
       }
     }, 300);
   }
@@ -695,8 +699,10 @@ resBox.addEventListener('click', function(e) {
     var bName = tr.getAttribute('data-branch');
     if (bName) {
       activeBranch = bName;
-      renderResult(currentCode, itemsData[currentCode], bName);
-      safeFocus();
+      // تغيير التحديد بأسلوب CSS فقط لمنع إعادة بناء الجدول وطيران التركيز
+      var allRows = resBox.querySelectorAll('tr[data-branch]');
+      allRows.forEach(function(r) { r.classList.remove('selected'); });
+      tr.classList.add('selected');
     }
   }
 });
