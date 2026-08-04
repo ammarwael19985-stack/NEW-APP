@@ -75,7 +75,7 @@
     
     <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
       <div style="font-size: 2.5rem; margin-bottom: 8px;">📁</div>
-      <h3 style="margin:5px 0;">اضغط هنا لاختيار ملف الإكسيل أو اسحبه إلى هنا</h3>
+      <h3 style="margin:5px 0;">اضغط هنا لااختيار ملف الإكسيل أو اسحبه إلى هنا</h3>
       <p style="font-size: 0.85rem; color: #888; margin:0;">يدعم ملفات .xlsx و .xls</p>
       <input type="file" id="fileInput" accept=".xlsx, .xls" style="display:none;" onchange="handleFile(this.files[0])">
     </div>
@@ -180,6 +180,9 @@ let currentActiveCode = localStorage.getItem('bp_admin_code') || null;
 let currentItemsData = null;
 let monitorInterval = null;
 
+// متغيّرات الفحص الذكي لتوفير البيانات
+let lastKnownUpdatedTime = null;
+
 window.addEventListener('DOMContentLoaded', () => {
   if (currentActiveCode) showDashboard(currentActiveCode);
 });
@@ -222,6 +225,9 @@ async function fetchOrderData(code) {
     const res = await fetch(`${DB_URL}/orders/${code}.json`);
     const data = await res.json();
     if (data) {
+      if (data._lastUpdated) {
+        lastKnownUpdatedTime = data._lastUpdated;
+      }
       updateDashboardUI(data);
       return data;
     }
@@ -300,7 +306,7 @@ async function processExcelData(rows) {
     const res = await fetch(`${DB_URL}/orders/${orderCode}.json`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ createdAt: new Date().toISOString(), items: items })
+      body: JSON.stringify({ createdAt: new Date().toISOString(), _lastUpdated: Date.now(), items: items })
     });
 
     if (res.ok) {
@@ -316,10 +322,42 @@ async function processExcelData(rows) {
 
 function startLiveMonitoring(orderCode) {
   if(monitorInterval) clearInterval(monitorInterval);
-  // سحب البيانات تلقائياً كل ثانيتين بشكل خفيف وسريع مضمون
-  monitorInterval = setInterval(() => {
-    fetchOrderData(orderCode);
+  // فحص خفيف جداً لتوفير استهلاك الترافيك 100%
+  monitorInterval = setInterval(async () => {
+    try {
+      const res = await fetch(`${DB_URL}/orders/${orderCode}/_lastUpdated.json`);
+      const serverTime = await res.json();
+      if (serverTime && serverTime !== lastKnownUpdatedTime) {
+        lastKnownUpdatedTime = serverTime;
+        fetchOrderData(orderCode);
+      } else {
+        // فحص تواجد الموظفين فقط بخفة
+        const sRes = await fetch(`${DB_URL}/orders/${orderCode}/activeSessions.json`);
+        const sessions = await sRes.json();
+        if (sessions) updateActiveWorkersOnly(sessions);
+      }
+    } catch(err) {}
   }, 2000);
+}
+
+function updateActiveWorkersOnly(sessions) {
+  const activeWorkersMap = {};
+  Object.keys(sessions || {}).forEach(sKey => {
+    const sess = sessions[sKey];
+    if (sess && sess.name && sess.timestamp) {
+      if (Date.now() - sess.timestamp < 6000) {
+        activeWorkersMap[sess.name] = true;
+      }
+    }
+  });
+
+  const workersArr = Object.keys(activeWorkersMap);
+  const workersContainer = document.getElementById('workersListContainer');
+  if (workersArr.length > 0) {
+    workersContainer.innerHTML = workersArr.map(w => `<span class="worker-badge">${w}</span>`).join('');
+  } else {
+    workersContainer.innerHTML = `<span style="color:#888; font-size:0.85rem;">لا يوجد موظفين متواجدين حالياً</span>`;
+  }
 }
 
 function updateDashboardUI(orderData) {
