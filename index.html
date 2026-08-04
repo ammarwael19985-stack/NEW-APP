@@ -125,7 +125,6 @@
 </head>
 <body>
 
-<!-- شاشة الترحيب التلقائية بالصورة الكبيرة icon-512.png -->
 <div id="appSplash" style="position:fixed; top:0; left:0; width:100%; height:100%; background:#1f6f5c; display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:999999; transition: opacity 0.4s ease;">
   <img src="icon-512.png" alt="BranchPrep" style="width:130px; height:130px; border-radius:24px; box-shadow:0 8px 24px rgba(0,0,0,0.25); margin-bottom:16px; object-fit:cover;">
   <h2 style="color:white; margin:0; font-size:1.4rem; font-family:sans-serif; font-weight:bold;">BranchPrep Worker</h2>
@@ -204,8 +203,9 @@ var pollInterval = null;
 var isEditingManualInput = false;
 var localModifiedBranches = {};
 
-// متغيّرات الفحص الذكي لتوفير البيانات
+// متغيّرات الفحص الذكي وتحديد الجلسة
 var lastKnownUpdatedTime = null;
+var sessionId = Math.random().toString(36).substring(2, 9);
 
 try {
   workerName = localStorage.getItem('bp_worker') || "";
@@ -428,7 +428,6 @@ document.getElementById('scanForm').addEventListener('submit', function(e) {
     activeBranch = null;
     
     tryAcquireLock(code);
-    renderResult(code, itemsData[code]);
 
     historyListArr.unshift({ name: itemsData[code].product || code, code: code });
     historyListArr = historyListArr.slice(0, 8);
@@ -446,29 +445,49 @@ document.getElementById('scanForm').addEventListener('submit', function(e) {
   safeFocus();
 });
 
+function getActiveLockWorker(row) {
+  if (row && row.lock && row.lock.sessionId && row.lock.sessionId !== sessionId) {
+    if (Date.now() - (row.lock.timestamp || 0) < 15000) {
+      return row.lock.worker || "موظف آخر";
+    }
+  }
+  return null;
+}
+
 function tryAcquireLock(code) {
   if (!workerName || !code) return;
-  var item = itemsData[code];
-  var activeLock = getActiveLockWorker(item);
 
-  if (!activeLock) {
-    var lockData = { worker: workerName, timestamp: Date.now() };
-    if (!item.lock) item.lock = {};
-    item.lock.worker = workerName;
-    item.lock.timestamp = lockData.timestamp;
+  fetch(DB_URL + '/orders/' + orderCode + '/items/' + code + '/lock.json')
+    .then(function(res) { return res.json(); })
+    .then(function(serverLock) {
+      var now = Date.now();
+      if (serverLock && serverLock.sessionId && serverLock.sessionId !== sessionId && (now - (serverLock.timestamp || 0) < 15000)) {
+        if (!itemsData[code]) itemsData[code] = {};
+        itemsData[code].lock = serverLock;
+        renderResult(code, itemsData[code], activeBranch);
+      } else {
+        var lockData = { worker: workerName, sessionId: sessionId, timestamp: now };
+        if (!itemsData[code]) itemsData[code] = {};
+        itemsData[code].lock = lockData;
 
-    fetch(DB_URL + '/orders/' + orderCode + '/items/' + code + '/lock.json', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(lockData)
-    }).catch(function(e){});
-  }
+        fetch(DB_URL + '/orders/' + orderCode + '/items/' + code + '/lock.json', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(lockData)
+        }).catch(function(e){});
+
+        renderResult(code, itemsData[code], activeBranch);
+      }
+    })
+    .catch(function(e){
+      renderResult(code, itemsData[code], activeBranch);
+    });
 }
 
 function keepLockAlive(code) {
   if (!workerName || !code) return;
   var item = itemsData[code];
-  if (item && item.lock && item.lock.worker === workerName) {
+  if (item && item.lock && item.lock.sessionId === sessionId) {
     item.lock.timestamp = Date.now();
     fetch(DB_URL + '/orders/' + orderCode + '/items/' + code + '/lock/timestamp.json', {
       method: 'PUT',
@@ -481,21 +500,12 @@ function keepLockAlive(code) {
 function unlockCode(code) {
   if (!workerName || !code) return;
   var item = itemsData[code];
-  if (item && item.lock && item.lock.worker === workerName) {
+  if (item && item.lock && item.lock.sessionId === sessionId) {
     delete item.lock;
     fetch(DB_URL + '/orders/' + orderCode + '/items/' + code + '/lock.json', {
       method: 'DELETE'
     }).catch(function(e){});
   }
-}
-
-function getActiveLockWorker(row) {
-  if (row && row.lock && row.lock.worker && row.lock.worker !== workerName) {
-    if (Date.now() - row.lock.timestamp < 15000) {
-      return row.lock.worker;
-    }
-  }
-  return null;
 }
 
 function renderResult(code, row, focusBranch) {
