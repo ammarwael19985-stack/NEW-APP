@@ -306,10 +306,15 @@ function openScanScreen() {
 
   if (!fastLockInterval) {
     fastLockInterval = setInterval(function() {
+      // إصلاح: منع تحديث الشاشة أثناء ما الموظف بيكتب في خانة الكمية
+      // عشان الفوكس والكيبورد ميقفلوش من نص الكتابة
+      if (isEditingManualInput) return;
+
       if (currentCode && orderCode) {
         fetch(DB_URL + '/orders/' + orderCode + '/items/' + currentCode + '/lock.json')
           .then(function(res) { return res.json(); })
           .then(function(lockData) {
+            if (isEditingManualInput) return; // فحص تاني بعد رجوع الرد لو المستخدم بدأ يكتب أثناء الانتظار
             if (itemsData[currentCode]) {
               itemsData[currentCode].lock = lockData;
               renderResult(currentCode, itemsData[currentCode], activeBranch);
@@ -694,6 +699,10 @@ resBox.addEventListener('click', function(e) {
       safeFocus();
     }
   }
+});
+
+window.addEventListener('beforeunload', function() {
+  if (currentCode) unlockCode(currentCode);
 });
 
 function renderHistory() {
