@@ -44,8 +44,10 @@
     display:inline-block; background:var(--accent); color:#fff;
     padding:13px 28px; border-radius:10px; font-weight:700;
     font-size:.95rem; cursor:pointer; border:none; width:100%;
+    transition: background 0.2s;
   }
   .file-btn:active { background:var(--accent-dark); }
+  .file-btn:disabled { background:#8ca8a0; cursor:not-allowed; }
 
   .status-bar {
     display:flex; justify-content:space-between; align-items:center;
@@ -121,7 +123,7 @@
   .history h3 { font-size:.8rem; color:var(--muted); margin:0 0 10px; font-weight:700; }
   .history-item { display:flex; justify-content:space-between; padding:8px 4px; font-size:.82rem; border-bottom:1px solid var(--line); }
   .history-item span.code { color:var(--muted); direction:ltr; }
-  .error-msg { background:#fbeae5; border:1px solid #e3b6a6; color:var(--warn); padding:12px 14px; border-radius:10px; font-size:.85rem; margin-top:16px; display:none; }
+  .error-msg { background:#fbeae5; border:1px solid #e3b6a6; color:var(--warn); padding:12px 14px; border-radius:10px; font-size:.85rem; margin-top:16px; display:none; font-weight:bold; }
 </style>
 </head>
 <body>
@@ -214,13 +216,25 @@ var barcodeInput = document.getElementById('barcodeInput');
 barcodeInput.addEventListener('click', function() {
   this.removeAttribute('inputmode');
 });
+
 window.onload = function() {
   try {
     if (workerName && orderCode) {
       document.getElementById('workerNameInput').value = workerName;
       document.getElementById('orderCodeInput').value = orderCode;
-      openScanScreen();
-      fetchLatestData(true);
+      
+      // التثبت التلقائي من وجود الطلبية عند الفتح المباشر
+      fetch(DB_URL + '/orders/' + orderCode + '.json')
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          if (data && (data.items || data.activeSessions)) {
+            openScanScreen();
+            fetchLatestData(true);
+          } else {
+            localStorage.removeItem('bp_worker');
+            localStorage.removeItem('bp_code');
+          }
+        }).catch(function(e){});
     }
   } catch(e) {}
 };
@@ -230,6 +244,7 @@ function loginToOrder() {
     var wName = document.getElementById('workerNameInput').value.trim();
     var oCode = document.getElementById('orderCodeInput').value.trim();
     var errDiv = document.getElementById('loginError');
+    var loginBtn = document.getElementById('loginBtn');
 
     if (!wName || !oCode) {
       errDiv.style.display = 'block';
@@ -238,16 +253,38 @@ function loginToOrder() {
     }
 
     errDiv.style.display = 'none';
-    workerName = wName;
-    orderCode = oCode;
+    loginBtn.disabled = true;
+    loginBtn.textContent = 'جاري التحقق من الطلبية... ⏳';
 
-    try {
-      localStorage.setItem('bp_worker', workerName);
-      localStorage.setItem('bp_code', orderCode);
-    } catch(e){}
+    // فحص مباشر لقاعدة البيانات للتأكد من صحة كود الطلبية
+    fetch(DB_URL + '/orders/' + oCode + '.json')
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        if (data && (data.items || data.activeSessions)) {
+          workerName = wName;
+          orderCode = oCode;
 
-    openScanScreen();
-    fetchLatestData(true);
+          try {
+            localStorage.setItem('bp_worker', workerName);
+            localStorage.setItem('bp_code', orderCode);
+          } catch(e){}
+
+          openScanScreen();
+          fetchLatestData(true);
+        } else {
+          errDiv.style.display = 'block';
+          errDiv.textContent = '❌ لا توجد طلبية بهذا الرقم! تأكد من الكود المكتوب.';
+          loginBtn.disabled = false;
+          loginBtn.textContent = 'دخول للتحضير 🚀';
+        }
+      })
+      .catch(function(e) {
+        errDiv.style.display = 'block';
+        errDiv.textContent = 'تعذر الاتصال بالسيرفر، تأكد من الإنترنت!';
+        loginBtn.disabled = false;
+        loginBtn.textContent = 'دخول للتحضير 🚀';
+      });
+
   } catch(e) {
     alert("حدث خطأ في التسجيل، جرب مرة أخرى.");
   }
@@ -261,7 +298,6 @@ function openScanScreen() {
   document.getElementById('statusTag').textContent = 'جاهز للمسح';
   safeFocus();
 
-  // 1. تكرار سحب الملفات الذكي كل 10 ثواني (توفير فائق)
   if (!pollInterval) {
     pollInterval = setInterval(function() {
       fetchLatestData(false);
@@ -270,7 +306,6 @@ function openScanScreen() {
     }, 10000);
   }
 
-  // 2. فحص سريع وصغير جداً (30 بايت) للقفل فقط كل ثانيتين لسرعة التنبيه الأحمر
   if (!fastLockInterval) {
     fastLockInterval = setInterval(function() {
       if (currentCode && orderCode) {
@@ -286,8 +321,7 @@ function openScanScreen() {
     }, 2000);
   }
 }
-
-function sendSessionHeartbeat() {
+  function sendSessionHeartbeat() {
   if (!workerName || !orderCode) return;
   var cleanKey = workerName.replace(/[.#$\[\]]/g, "_");
   fetch(DB_URL + '/orders/' + orderCode + '/activeSessions/' + cleanKey + '.json', {
@@ -408,7 +442,6 @@ document.getElementById('scanForm').addEventListener('submit', function(e) {
     return;
   }
   document.getElementById('placeholder').style.display = 'none';
-
   if (itemsData[code]) {
     if (currentCode && currentCode !== code) {
       unlockCode(currentCode);
