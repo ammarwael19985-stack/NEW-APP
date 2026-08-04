@@ -309,9 +309,9 @@
 
       <h2 style="margin-top:0;">مرحباً بك 📦</h2>
 
-      <p style="color:var(--muted); font-size:0.85rem; margin-bottom:20px;">ادخل اسمك وكود الطلبية من الكمبيوتر للبدء</p>
+      <p style="color:var(--muted); font-size:0.85rem; margin-bottom:20px;">ادخل اسمك وكود الطلبية للبدء</p>
 
-      <input type="text" id="workerNameInput" placeholder="اسم العامل (مثال: عمار)" />
+      <input type="text" id="workerNameInput" placeholder="اسم الموظف (مثال: عمار)" />
 
       <input type="number" id="orderCodeInput" placeholder="كود الطلبية (4 أرقام)" />
 
@@ -329,7 +329,7 @@
 
     <div class="status-bar">
 
-      <span>العامل: <b id="workerLabel">-</b> | الطلبية: <b id="codeLabel">-</b></span>
+      <span>الموظف: <b id="workerLabel">-</b> | الطلبية: <b id="codeLabel">-</b></span>
 
       <div>
 
@@ -347,7 +347,7 @@
 
       <form id="scanForm">
 
-        <input type="text" id="barcodeInput" inputmode="none" placeholder="امسح الباركود واضغط Enter" autocomplete="off" />
+        <input type="text" id="barcodeInput" inputmode="none" placeholder="امسح الباركود" autocomplete="off" />
 
       </form>
 
@@ -359,7 +359,7 @@
 
 
 
-    <div id="placeholder" class="placeholder">استنى مسح أول باركود عشان تطلعلك الكميات هنا</div>
+    <div id="placeholder" class="placeholder">فى انتظار مسح أول باركود عشان تطلعلك الكميات هنا</div>
 
     <div id="resultBox" class="result" style="display:none;"></div>
 
@@ -926,7 +926,7 @@ function renderResult(code, row, focusBranch) {
 
     warnBox.style.display = 'block';
 
-    warnBox.innerHTML = '🔒 <b>تنبيه:</b> العامل (<b>' + escapeHtml(lockWorker) + '</b>) متواجد شغال على هذا المنتج حالياً!<br><small style="font-weight:normal;">التعديل مقفول عليك نهائياً ومتاح فقط للعامل (<b>' + escapeHtml(lockWorker) + '</b>).</small>';
+    warnBox.innerHTML = '🔒 <b>تنبيه:</b> الموظف (<b>' + escapeHtml(lockWorker) + '</b>) متواجد شغال على هذا المنتج حالياً!<br><small style="font-weight:normal;">التعديل مقفول عليك حالياً ومتاح فقط للموظف (<b>' + escapeHtml(lockWorker) + '</b>).</small>';
 
   } else {
 
