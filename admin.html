@@ -179,7 +179,7 @@ const DB_URL = "https://branchprep-511fc-default-rtdb.firebaseio.com";
 let currentActiveCode = localStorage.getItem('bp_admin_code') || null;
 let currentItemsData = null;
 let monitorInterval = null;
-let lastAdminServerTime = 0; // لتقليل استهلاك البيانات في الأدمن
+let lastAdminServerTime = 0;
 
 window.addEventListener('DOMContentLoaded', () => {
   if (currentActiveCode) showDashboard(currentActiveCode);
@@ -220,12 +220,11 @@ async function openExistingOrder() {
 
 async function fetchOrderData(code, force) {
   try {
-    // فحص ذكي أولاً لمعرفة هل حدث تغيير بالسيرفر قبل سحب الطلبية الكاملة
     const timeRes = await fetch(`${DB_URL}/orders/${code}/_lastUpdated.json`);
     const serverTime = await timeRes.json();
 
     if (!force && serverTime && serverTime === lastAdminServerTime) {
-      return null; // عدم السحب لتوفير البيانات
+      return null;
     }
     if (serverTime) lastAdminServerTime = serverTime;
 
@@ -330,7 +329,6 @@ async function processExcelData(rows) {
 
 function startLiveMonitoring(orderCode) {
   if(monitorInterval) clearInterval(monitorInterval);
-  // فحص موفر للغاية كل 10 ثواني
   monitorInterval = setInterval(() => {
     fetchOrderData(orderCode, false);
   }, 10000);
@@ -368,8 +366,10 @@ function updateDashboardUI(orderData) {
     totalItemsCount++;
     const item = items[barcode];
     let branchDetailsHtml = '';
+    
     let isItemComplete = true;
     let isBeingPrepared = false;
+    let branchCount = 0;
 
     if (item.lock && item.lock.worker && item.lock.timestamp) {
       if (Date.now() - item.lock.timestamp < 35000) {
@@ -378,16 +378,22 @@ function updateDashboardUI(orderData) {
     }
 
     Object.keys(item.branches || {}).forEach(bName => {
+      branchCount++;
       const bData = item.branches[bName];
       const target = Number(bData.target) || 0;
-      const actual = bData.actual !== "" ? Number(bData.actual) : 0;
+      const actual = (bData.actual !== "" && bData.actual !== undefined) ? Number(bData.actual) : 0;
       const worker = bData.worker ? `(${bData.worker})` : '';
 
       totalTargetQty += target;
       totalActualQty += actual;
 
-      if (actual < target) isItemComplete = false;
-      if (bData.actual !== "") isBeingPrepared = true;
+      if (actual < target) {
+        isItemComplete = false;
+      }
+      
+      if (bData.actual !== "" && bData.actual !== undefined) {
+        isBeingPrepared = true;
+      }
 
       const isDone = actual >= target && target > 0;
       branchDetailsHtml += `
@@ -396,6 +402,10 @@ function updateDashboardUI(orderData) {
         </span>
       `;
     });
+
+    if (branchCount === 0) {
+      isItemComplete = false;
+    }
 
     if (isBeingPrepared) {
       startedItemsCount++;
@@ -440,7 +450,7 @@ function updateDashboardUI(orderData) {
   document.getElementById('startedItemsBar').style.width = `${startedPercent}%`;
 
   const completedPercent = totalItemsCount > 0 ? Math.round((completedItemsCount / totalItemsCount) * 100) : 0;
-  document.getElementById('completedItemsText').textContent = `${completedPercent} / ${totalItemsCount} صنف (${completedPercent}%)`;
+  document.getElementById('completedItemsText').textContent = `${completedItemsCount} / ${totalItemsCount} صنف (${completedPercent}%)`;
   document.getElementById('completedItemsBar').style.width = `${completedPercent}%`;
 
   const pendingPercent = startedItemsCount > 0 ? Math.round((pendingItemsCount / startedItemsCount) * 100) : 0;
@@ -486,7 +496,7 @@ async function exportToExcel(onlyPending) {
         const bData = branches[bName];
         const target = Number(bData.target) || 0;
         const actual = (bData.actual !== "" && bData.actual !== undefined) ? Number(bData.actual) : 0;
-        if (bData.actual !== "") hasAnyActual = true;
+        if (bData.actual !== "" && bData.actual !== undefined) hasAnyActual = true;
         if (actual < target) isItemPending = true;
       });
 
@@ -501,7 +511,7 @@ async function exportToExcel(onlyPending) {
         const worker = bData.worker || '';
 
         let statusText = "";
-        if (bData.actual === "" || actual === 0) {
+        if (bData.actual === "" || bData.actual === undefined) {
           statusText = "لم يتم التحضير";
         } else if (actual > target) {
           statusText = "أعلى من المطلوبة";
