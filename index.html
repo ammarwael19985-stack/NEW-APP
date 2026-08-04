@@ -376,7 +376,7 @@ function updateServerLastUpdated() {
 }
 
 function logout() {
-  var confirmExit = confirm("هل أنت تأكد من تسجيل الخروج؟");
+  var confirmExit = confirm("هل أنت متأكد من تسجيل الخروج؟");
   if (confirmExit) {
     if (pollInterval) clearInterval(pollInterval);
     if (workerName && orderCode) {
